@@ -4,7 +4,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-rose.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Web%20%7C%20Android-sp--green.svg)](#downloads--access)
-[![Release](https://img.shields.io/badge/Release-v5.1.2-pink.svg)](https://github.com/arunkumarpalani47-sys/heart_tone/releases)
+[![Release](https://img.shields.io/badge/Release-v5.1.2-pink.svg)](https://github.com/harichandramathi2006/heart-_tone/releases)
 
 ---
 
@@ -20,8 +20,8 @@ The application serves both modern web browsers and native Android devices via C
 
 | Platform | Access Link | Requirement |
 | :--- | :--- | :--- |
-| **Web Application** | [hearttone.vercel.app](https://hearttone.vercel.app) *(or your deployed Vercel domain)* | Modern Web Browser |
-| **Android Client** | [HeartTone.apk](https://github.com/arunkumarpalani47-sys/heart_tone/releases/download/v5.1.2/HeartTone.apk) | Android 7.0+ (API 24+) |
+| **Web Application** | [heart-tone.vercel.app](https://heart-tone.vercel.app) *(or your deployed Vercel domain)* | Modern Web Browser |
+| **Android Client** | [HeartTone.apk](https://github.com/harichandramathi2006/heart-_tone/releases/download/v5.1.2/HeartTone.apk) | Android 7.0+ (API 24+) |
 
 ---
 

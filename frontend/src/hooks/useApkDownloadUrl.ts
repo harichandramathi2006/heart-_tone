@@ -1,2 +1,2 @@
 export const useApkDownloadUrl = () =>
-  "https://github.com/arunkumarpalani47-sys/heart_tone/releases/download/v5.1.2/HeartTone.apk";
+  "https://github.com/harichandramathi2006/heart-_tone/releases/download/v5.1.2/HeartTone.apk";
