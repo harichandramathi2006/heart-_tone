@@ -3,7 +3,7 @@ import { Song, Album, Artist } from "../types/song";
 
 import { isNative } from "../utils/platform";
 
-const LIVE_URL = "https://heart-tone.onrender.com";
+const LIVE_URL = "https://heart-tone-l4h3.onrender.com";
 const raw = import.meta.env.VITE_BACKEND_URL || "";
 const BACKEND_URL = (
   isNative() && (!raw || raw.includes("localhost"))

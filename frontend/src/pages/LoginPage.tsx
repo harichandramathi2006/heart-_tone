@@ -257,7 +257,7 @@ export default function LoginPage() {
     try {
       const backendUrl = (
         import.meta.env.VITE_BACKEND_URL ||
-        "https://heart-tone.onrender.com"
+        "https://heart-tone-l4h3.onrender.com"
       ).replace(/\/$/, "");
       const { Browser } = await import("@capacitor/browser");
       await Browser.open({

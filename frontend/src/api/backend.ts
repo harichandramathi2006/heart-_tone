@@ -4,7 +4,7 @@ import { User, UserStats } from "../types/user";
 import { isNative } from "../utils/platform";
 import { bestImg, getArtists } from "../lib/helpers";
 
-const LIVE_URL = "https://heart-tone.onrender.com";
+const LIVE_URL = "https://heart-tone-l4h3.onrender.com";
 const rawBase = import.meta.env.VITE_BACKEND_URL || "";
 const resolvedBaseUrl = (
   isNative() && (!rawBase || rawBase.includes("localhost"))
