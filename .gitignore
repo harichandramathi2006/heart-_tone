@@ -19,7 +19,7 @@ frontend/android/.gradle/
 .env.production
 backend/.env
 frontend/.env
-frontend/.env.production
+!frontend/.env.production
 
 # Android builds
 *.apk
