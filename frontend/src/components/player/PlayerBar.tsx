@@ -12,6 +12,7 @@ import {
   Volume1,
   Heart,
   ListMusic,
+  Loader2,
 } from "lucide-react";
 import { bestImg, getArtists, fmt, onImgErr } from "../../lib/helpers";
 import { FALLBACK_IMG } from "../../lib/constants";
@@ -72,6 +73,7 @@ export const PlayerBar = ({
 }: PlayerBarProps) => {
   const storeCurrentTime = usePlayerStore((s) => s.currentTime);
   const storeDuration = usePlayerStore((s) => s.duration);
+  const isBuffering = usePlayerStore((s) => s.isBuffering);
   const currentTime = propCurrentTime !== undefined ? propCurrentTime : storeCurrentTime;
   const duration = propDuration !== undefined ? propDuration : storeDuration;
   const progress = duration ? currentTime / duration : 0;
@@ -256,7 +258,9 @@ export const PlayerBar = ({
             className="w-10 h-10 rounded-full bg-white flex items-center justify-center hover:scale-105 active:scale-95 transition-all duration-200 disabled:opacity-20"
             style={{ boxShadow: "0 4px 16px rgba(255,255,255,0.15)" }}
           >
-            {isPlaying ? (
+            {isBuffering ? (
+              <Loader2 size={15} className="text-black animate-spin" />
+            ) : isPlaying ? (
               <Pause size={15} className="text-black fill-black" />
             ) : (
               <Play size={15} className="text-black fill-black ml-0.5" />
@@ -294,11 +298,13 @@ export const PlayerBar = ({
               className="w-10 h-10 rounded-full bg-white flex items-center justify-center hover:scale-[1.08] active:scale-95 transition-all duration-200 disabled:opacity-20"
               style={{ boxShadow: "0 4px 16px rgba(255,255,255,0.15)" }}
             >
-              {isPlaying ? (
-                <Pause size={16} className="text-black fill-black" />
-              ) : (
-                <Play size={16} className="text-black fill-black ml-0.5" />
-              )}
+            {isBuffering ? (
+              <Loader2 size={16} className="text-black animate-spin" />
+            ) : isPlaying ? (
+              <Pause size={16} className="text-black fill-black" />
+            ) : (
+              <Play size={16} className="text-black fill-black ml-0.5" />
+            )}
             </button>
             <button
               onClick={onNext}

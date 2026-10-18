@@ -62,6 +62,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({
     resume,
     seekTo,
     setIsPlaying,
+    setIsBuffering,
     sleepTimerActive,
     sleepTimerSecondsLeft,
     sleepTimerEndOnTrack,
@@ -77,6 +78,9 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({
   const srcJustChangedRef = useRef(false);
   // Safety timer: clear srcJustChangedRef after a timeout so pause isn't blocked forever
   const srcChangedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Stall recovery: if audio stalls for >6s, re-fetch a fresh URL and retry
+  const stallRecoveryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stallRecoveryAttemptsRef = useRef(0);
   // Separate flag for remote song changes so the song-sync effect doesn't echo them back.
   const isRemoteSongChangeRef = useRef(false);
 
@@ -194,28 +198,18 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({
           }
         }
       } else {
-        const audioSourceSetting = localStorage.getItem("ss_audio_source") || "default";
-        if (audioSourceSetting === "lossless" && currentSong.name) {
-          try {
-            const BACKEND = (import.meta.env.VITE_BACKEND_URL || "http://localhost:4000").replace(/\/$/, "");
-            const title = currentSong.name || "";
-            const artist = getArtists(currentSong);
-            const resp = await fetch(`${BACKEND}/api/lossless/stream?title=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist)}`, { credentials: "include" });
-            if (resp.ok) {
-              const data = await resp.json();
-              if (data?.streamUrl) {
-                targetSrc = data.streamUrl;
-              }
-            }
-          } catch (e) {}
-        }
-
-        if (!targetSrc) {
-          const url = getBestAudioUrl(currentSong.downloadUrl);
-          targetSrc = url || "";
-        }
-
-        if (!targetSrc && currentSong.streamUrl && typeof currentSong.streamUrl === "string" && currentSong.streamUrl.startsWith("http")) {
+        // ── Priority order for instant playback (no blocking network round-trips) ──
+        // 1. Best quality from downloadUrl array (320kbps → 160kbps → …)
+        // 2. streamUrl (pre-resolved by backend search)
+        // 3. Backend re-fetch via /api/search/stream-url (only if both above are missing)
+        const bestFromDownload = getBestAudioUrl(currentSong.downloadUrl);
+        if (bestFromDownload) {
+          targetSrc = bestFromDownload;
+        } else if (
+          currentSong.streamUrl &&
+          typeof currentSong.streamUrl === "string" &&
+          currentSong.streamUrl.startsWith("http")
+        ) {
           targetSrc = currentSong.streamUrl;
         }
 
@@ -272,6 +266,13 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({
           srcJustChangedRef.current = false;
           srcChangedTimerRef.current = null;
         }, 3000);
+
+        // Clear any pending stall recovery when we swap src
+        if (stallRecoveryTimerRef.current) {
+          clearTimeout(stallRecoveryTimerRef.current);
+          stallRecoveryTimerRef.current = null;
+        }
+        stallRecoveryAttemptsRef.current = 0;
 
         audioRef.current!.removeAttribute("crossOrigin");
         audioRef.current!.src = targetSrc;
@@ -463,6 +464,55 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({
     if (audioRef.current) setCurrentTime(audioRef.current.currentTime);
   };
 
+  // canplay: audio has enough data to start playing — clear buffering spinner
+  const handleCanPlay = () => {
+    setIsBuffering(false);
+    // On Android/iOS the browser may not auto-play after a src change — force it
+    if (usePlayerStore.getState().isPlaying && audioRef.current?.paused) {
+      audioRef.current.play().catch(() => {});
+    }
+  };
+
+  // waiting/stalled: audio is waiting for more data — show buffering spinner
+  // After 6s of stalling, attempt to recover by re-fetching a fresh CDN URL.
+  const handleWaiting = () => {
+    setIsBuffering(true);
+    const song = usePlayerStore.getState().currentSong;
+    if (!song || song._isOffline || song.id?.startsWith("local_")) return;
+    if (stallRecoveryTimerRef.current) return; // recovery already scheduled
+
+    stallRecoveryTimerRef.current = setTimeout(async () => {
+      stallRecoveryTimerRef.current = null;
+      if (!audioRef.current) return;
+      const currentState = usePlayerStore.getState();
+      if (!currentState.isPlaying || currentState.currentSong?.id !== song.id) return;
+      if (stallRecoveryAttemptsRef.current >= 2) return; // max 2 retries
+      stallRecoveryAttemptsRef.current++;
+
+      try {
+        const BACKEND = (import.meta.env.VITE_BACKEND_URL || "http://localhost:4000").replace(/\/$/, "");
+        const resp = await fetch(`${BACKEND}/api/search/stream-url?id=${song.id}`, { credentials: "include" });
+        if (resp.ok) {
+          const data = await resp.json();
+          const freshUrl = (data.streamUrl || "").replace(/&amp;/g, "&");
+          if (freshUrl && freshUrl !== audioRef.current.src) {
+            const savedTime = audioRef.current.currentTime;
+            srcJustChangedRef.current = true;
+            audioRef.current.removeAttribute("crossOrigin");
+            audioRef.current.src = freshUrl;
+            audioRef.current.currentTime = savedTime;
+            audioRef.current.play().catch(() => {});
+          }
+        }
+      } catch {}
+    }, 6000);
+  };
+
+  const handleStalled = () => {
+    // stalled = network stopped delivering data, trigger same recovery path
+    handleWaiting();
+  };
+
   const handleLoadedMetadata = () => {
     // New src is now loaded — any future pause events are real user actions.
     srcJustChangedRef.current = false;
@@ -470,6 +520,13 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({
       clearTimeout(srcChangedTimerRef.current);
       srcChangedTimerRef.current = null;
     }
+    // Audio loaded — cancel any pending stall recovery
+    if (stallRecoveryTimerRef.current) {
+      clearTimeout(stallRecoveryTimerRef.current);
+      stallRecoveryTimerRef.current = null;
+    }
+    stallRecoveryAttemptsRef.current = 0;
+    setIsBuffering(false);
     if (audioRef.current) {
       const dur = audioRef.current.duration;
       if (dur && isFinite(dur)) setDuration(dur);
@@ -632,6 +689,9 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({
         }}
         className="hidden"
         preload="auto"
+        onCanPlay={handleCanPlay}
+        onWaiting={handleWaiting}
+        onStalled={handleStalled}
         onError={handleError}
       />
     </PlayerContext.Provider>

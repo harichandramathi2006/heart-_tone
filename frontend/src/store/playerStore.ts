@@ -5,6 +5,7 @@ import { recordRecentlyPlayed } from "../utils/recentHistory";
 interface PlayerState {
   currentSong: Song | null;
   isPlaying: boolean;
+  isBuffering: boolean;
   currentTime: number;
   duration: number;
   volume: number;
@@ -32,6 +33,7 @@ interface PlayerActions {
   setDuration: (d: number) => void;
   setCurrentTime: (t: number) => void;
   setIsPlaying: (v: boolean) => void;
+  setIsBuffering: (v: boolean) => void;
   toggleAutoplay: () => void;
   setPlayerExpanded: (v: boolean) => void;
   setSleepTimer: (seconds: number | null, endOnTrack?: boolean) => void;
@@ -41,6 +43,7 @@ export const usePlayerStore = create<PlayerState & PlayerActions>(
   (set, get) => ({
     currentSong: null,
     isPlaying: false,
+    isBuffering: false,
     currentTime: 0,
     duration: 0,
     volume: 1.0,
@@ -59,6 +62,7 @@ export const usePlayerStore = create<PlayerState & PlayerActions>(
       set({
         currentSong: song,
         isPlaying: true,
+        isBuffering: true,  // show spinner until canplay fires
         currentTime: 0,
         duration: Number(song.duration) || 0,
       });
@@ -105,6 +109,7 @@ export const usePlayerStore = create<PlayerState & PlayerActions>(
     setDuration: (d) => set({ duration: d }),
     setCurrentTime: (t) => set({ currentTime: t }),
     setIsPlaying: (v) => set({ isPlaying: v }),
+    setIsBuffering: (v) => set({ isBuffering: v }),
     toggleAutoplay: () => set((s) => ({ autoplay: !s.autoplay })),
     setPlayerExpanded: (v) => set({ isPlayerExpanded: v }),
     setSleepTimer: (seconds, endOnTrack = false) =>
