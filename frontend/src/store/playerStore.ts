@@ -9,7 +9,6 @@ interface PlayerState {
   currentTime: number;
   duration: number;
   volume: number;
-  volumeBoost: number; // 1.0 (100%) to 10.0 (1000%)
   isMuted: boolean;
   isShuffle: boolean;
   repeatMode: "off" | "one" | "all";
@@ -28,7 +27,6 @@ interface PlayerActions {
   togglePlay: () => void;
   seekTo: (time: number) => void;
   setVolume: (vol: number) => void;
-  setVolumeBoost: (boost: number) => void;
   toggleMute: () => void;
   toggleShuffle: () => void;
   cycleRepeat: () => void;
@@ -49,14 +47,6 @@ export const usePlayerStore = create<PlayerState & PlayerActions>(
     currentTime: 0,
     duration: 0,
     volume: 1.0,
-    volumeBoost: (() => {
-      try {
-        const saved = localStorage.getItem("ss_volume_boost");
-        return saved ? Math.min(10, Math.max(1, parseFloat(saved))) : 1.0;
-      } catch {
-        return 1.0;
-      }
-    })(),
     isMuted: false,
     isShuffle: false,
     repeatMode: "off",
@@ -105,13 +95,6 @@ export const usePlayerStore = create<PlayerState & PlayerActions>(
     },
     seekTo: (time) => set({ currentTime: time }),
     setVolume: (vol) => set({ volume: vol, isMuted: vol === 0 }),
-    setVolumeBoost: (boost) => {
-      const clamped = Math.min(10, Math.max(1, boost));
-      try {
-        localStorage.setItem("ss_volume_boost", clamped.toString());
-      } catch {}
-      set({ volumeBoost: clamped });
-    },
     toggleMute: () => set((s) => ({ isMuted: !s.isMuted })),
     toggleShuffle: () => set((s) => ({ isShuffle: !s.isShuffle })),
     cycleRepeat: () =>

@@ -13,7 +13,6 @@ import {
   Heart,
   ListMusic,
   Loader2,
-  Zap,
 } from "lucide-react";
 import { bestImg, getArtists, fmt, onImgErr } from "../../lib/helpers";
 import { FALLBACK_IMG } from "../../lib/constants";
@@ -75,12 +74,10 @@ export const PlayerBar = ({
   const storeCurrentTime = usePlayerStore((s) => s.currentTime);
   const storeDuration = usePlayerStore((s) => s.duration);
   const isBuffering = usePlayerStore((s) => s.isBuffering);
-  const volumeBoost = usePlayerStore((s) => s.volumeBoost);
-  const setVolumeBoost = usePlayerStore((s) => s.setVolumeBoost);
   const currentTime = propCurrentTime !== undefined ? propCurrentTime : storeCurrentTime;
   const duration = propDuration !== undefined ? propDuration : storeDuration;
   const progress = duration ? currentTime / duration : 0;
-  const effectiveVolPct = Math.round(volume * volumeBoost * 100);
+  const volPct = Math.round(volume * 100);
   const img = currentSong
     ? bestImg(currentSong.image, "50x50") || FALLBACK_IMG
     : null;
@@ -208,29 +205,25 @@ export const PlayerBar = ({
               <VolumeIcon volume={volume} />
             </button>
 
-            {/* Volume popup — vertical slider & 1000% booster */}
+            {/* Volume popup — vertical slider */}
             {showMobileVol && (
               <div
-                className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 px-3.5 py-4 rounded-2xl flex flex-col items-center gap-2.5 z-50 min-w-[130px]"
+                className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 px-3 py-4 rounded-2xl flex flex-col items-center gap-2"
                 style={{
-                  background: "rgba(18,18,18,0.98)",
-                  border: "1px solid rgba(255,255,255,0.12)",
-                  backdropFilter: "blur(28px)",
-                  boxShadow: "0 12px 40px rgba(0,0,0,0.85)",
+                  background: "rgba(18,18,18,0.95)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  backdropFilter: "blur(24px)",
+                  boxShadow: "0 8px 32px rgba(0,0,0,0.6)",
                 }}
               >
-                <div className="flex items-center gap-1">
-                  <Zap size={13} className={volumeBoost > 1 ? "text-amber-400 fill-amber-400" : "text-white/40"} />
-                  <span className={`text-[12px] font-bold tabular-nums ${volumeBoost > 1 ? "text-amber-400" : "text-white/80"}`}>
-                    {effectiveVolPct}%
-                  </span>
-                </div>
-
+                <span className="text-[10px] text-white/40 font-semibold tabular-nums">
+                  {volPct}
+                </span>
                 <input
                   type="range"
                   min={0}
                   max={100}
-                  value={Math.round(volume * 100)}
+                  value={volPct}
                   onChange={(e) => onVolume(+e.target.value / 100)}
                   className="volume-bar volume-bar-vertical"
                   style={
@@ -238,54 +231,14 @@ export const PlayerBar = ({
                       "--volume": `${volume}`,
                       writingMode: "vertical-lr" as any,
                       direction: "rtl",
-                      width: "5px",
-                      height: "90px",
+                      width: "4px",
+                      height: "100px",
                     } as React.CSSProperties
                   }
                 />
-
-                {/* Boost Pills up to 1000% */}
-                <div className="w-full flex flex-col gap-1 pt-1 border-t border-white/10">
-                  <span className="text-[9px] font-extrabold uppercase tracking-wider text-white/40 text-center">
-                    Clear Boost
-                  </span>
-                  <div className="grid grid-cols-3 gap-1">
-                    {[1, 2, 5].map((b) => (
-                      <button
-                        key={b}
-                        onClick={() => {
-                          setVolumeBoost(b);
-                          if (volume === 0) onVolume(1);
-                        }}
-                        className={`text-[9px] font-bold py-1 px-1 rounded-md transition-all ${
-                          volumeBoost === b
-                            ? "bg-amber-500 text-black shadow-md shadow-amber-500/30"
-                            : "bg-white/5 text-white/70 hover:bg-white/10"
-                        }`}
-                      >
-                        {b * 100}%
-                      </button>
-                    ))}
-                  </div>
-                  <button
-                    onClick={() => {
-                      setVolumeBoost(volumeBoost === 10 ? 1 : 10);
-                      if (volume === 0) onVolume(1);
-                    }}
-                    className={`text-[9px] font-black py-1 px-1.5 rounded-md transition-all flex items-center justify-center gap-1 ${
-                      volumeBoost === 10
-                        ? "bg-gradient-to-r from-amber-400 to-orange-500 text-black shadow-lg shadow-orange-500/40"
-                        : "bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 border border-amber-500/30"
-                    }`}
-                  >
-                    <Zap size={10} className="fill-current" />
-                    1000% ULTRA
-                  </button>
-                </div>
-
                 <button
                   onClick={() => onVolume(volume > 0 ? 0 : 1.0)}
-                  className="text-white/40 hover:text-white transition-colors pt-1"
+                  className="text-white/40 hover:text-white transition-colors"
                 >
                   <VolumeIcon volume={volume} />
                 </button>
@@ -420,33 +373,15 @@ export const PlayerBar = ({
               type="range"
               min={0}
               max={100}
-              value={Math.round(volume * 100)}
+              value={volPct}
               onChange={(e) => onVolume(+e.target.value / 100)}
               className="volume-bar flex-1 h-1 rounded-full cursor-pointer"
               style={{ "--volume": `${volume}` } as React.CSSProperties}
             />
-            <span className={`text-[10px] min-w-[32px] tabular-nums text-right font-medium ${volumeBoost > 1 ? "text-amber-400 font-bold" : "text-white/30"}`}>
-              {effectiveVolPct}%
+            <span className="text-[10px] text-white/30 min-w-[28px] tabular-nums text-right">
+              {volPct}%
             </span>
           </div>
-
-          {/* Quick Boost cycle button on desktop */}
-          <button
-            onClick={() => {
-              const nextBoost = volumeBoost === 1 ? 2 : volumeBoost === 2 ? 5 : volumeBoost === 5 ? 10 : 1;
-              setVolumeBoost(nextBoost);
-              if (volume === 0) onVolume(1);
-            }}
-            title={`Volume Boost: ${Math.round(volumeBoost * 100)}% (Click to cycle 100% -> 200% -> 500% -> 1000%)`}
-            className={`px-2 py-0.5 rounded-full text-[10px] font-black transition-all duration-200 flex items-center gap-1 flex-shrink-0 ${
-              volumeBoost > 1
-                ? "bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm shadow-amber-500/20"
-                : "bg-white/5 text-white/40 hover:text-white/70 hover:bg-white/10"
-            }`}
-          >
-            <Zap size={10} className={volumeBoost > 1 ? "fill-amber-400 text-amber-400" : ""} />
-            {volumeBoost > 1 ? `${volumeBoost * 100}%` : "BOOST"}
-          </button>
         </div>
       </div>
     </div>

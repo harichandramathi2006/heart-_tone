@@ -23,7 +23,6 @@ import {
   Minus,
   Plus,
   Moon,
-  Zap,
 } from "lucide-react";
 import {
   bestImg,
@@ -262,9 +261,7 @@ export const NowPlayingView = ({
   const img = bestImg(currentSong.image) || FALLBACK_IMG;
   const artists = getArtists(currentSong);
   const progress = duration ? (currentTime / duration) * 100 : 0;
-  const volumeBoost = usePlayerStore.getState().volumeBoost;
-  const setVolumeBoost = usePlayerStore.getState().setVolumeBoost;
-  const effectiveVolPct = Math.round(volume * volumeBoost * 100);
+  const volPct = Math.round(volume * 100);
 
   return (
     <motion.div
@@ -433,69 +430,40 @@ export const NowPlayingView = ({
                 >
                   <VolumeIcon volume={volume} />
                 </button>
-                {/* Horizontal volume popup + 1000% booster */}
+                {/* Horizontal volume popup */}
                 {showVol && (
                   <div
-                    className="absolute bottom-full right-0 mb-4 flex flex-col gap-2.5 py-3 px-3.5 rounded-2xl z-50 min-w-[200px]"
+                    className="absolute bottom-full right-0 mb-4 flex items-center gap-2 py-2 px-3 rounded-2xl z-50"
                     style={{
-                      background: "rgba(18,18,18,0.98)",
-                      border: "1px solid rgba(255,255,255,0.12)",
-                      backdropFilter: "blur(28px)",
-                      boxShadow: "0 12px 40px rgba(0,0,0,0.85)",
+                      background: "rgba(18,18,18,0.95)",
+                      border: "1px solid rgba(255,255,255,0.08)",
+                      backdropFilter: "blur(24px)",
+                      boxShadow: "0 8px 32px rgba(0,0,0,0.6)",
                     }}
                     onMouseEnter={() => {
                       if (volTimeout.current) clearTimeout(volTimeout.current);
                     }}
                     onMouseLeave={scheduleHideVol}
                   >
-                    <div className="flex items-center justify-between gap-2">
-                      <button
-                        onClick={() => onVolume(Math.max(0, volume - 0.1))}
-                        className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 text-white/50 hover:text-white transition-all"
-                        title="Decrease Volume"
-                      >
-                        <Minus size={14} />
-                      </button>
-                      <div className="flex items-center gap-1.5">
-                        <Zap size={14} className={volumeBoost > 1 ? "text-amber-400 fill-amber-400" : "text-white/40"} />
-                        <span className={`text-[13px] tabular-nums font-black ${volumeBoost > 1 ? "text-amber-400" : "text-white/80"}`}>
-                          {effectiveVolPct}%
-                        </span>
-                      </div>
-                      <button
-                        onClick={() => onVolume(Math.min(1, volume + 0.1))}
-                        className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 text-white/50 hover:text-white transition-all"
-                        title="Increase Volume"
-                      >
-                        <Plus size={14} />
-                      </button>
-                    </div>
-
-                    {/* Quick Boost Pills up to 1000% */}
-                    <div className="flex flex-col gap-1 pt-1.5 border-t border-white/10">
-                      <span className="text-[9px] font-black uppercase tracking-wider text-white/40">
-                        Ultra Clear Boost (Noise-Free)
+                    <button
+                      onClick={() => onVolume(Math.max(0, volume - 0.1))}
+                      className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 text-white/50 hover:text-white transition-all"
+                      title="Decrease Volume"
+                    >
+                      <Minus size={14} />
+                    </button>
+                    <div className="w-12 text-center">
+                      <span className="text-[11px] text-white/60 tabular-nums font-bold">
+                        {volPct}%
                       </span>
-                      <div className="grid grid-cols-4 gap-1">
-                        {[1, 2, 5, 10].map((b) => (
-                          <button
-                            key={b}
-                            onClick={() => {
-                              setVolumeBoost(b);
-                              if (volume === 0) onVolume(1);
-                              scheduleHideVol();
-                            }}
-                            className={`text-[10px] font-bold py-1 px-1 rounded-md transition-all ${
-                              volumeBoost === b
-                                ? "bg-gradient-to-r from-amber-400 to-orange-500 text-black font-black shadow-md shadow-amber-500/30"
-                                : "bg-white/5 text-white/70 hover:bg-white/10"
-                            }`}
-                          >
-                            {b * 100}%
-                          </button>
-                        ))}
-                      </div>
                     </div>
+                    <button
+                      onClick={() => onVolume(Math.min(1, volume + 0.1))}
+                      className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 text-white/50 hover:text-white transition-all"
+                      title="Increase Volume"
+                    >
+                      <Plus size={14} />
+                    </button>
                   </div>
                 )}
               </div>
