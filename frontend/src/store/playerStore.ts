@@ -62,10 +62,6 @@ export const usePlayerStore = create<PlayerState & PlayerActions>(
         currentTime: 0,
         duration: Number(song.duration) || 0,
       });
-      const audio = document.querySelector("audio");
-      if (audio) {
-        audio.play().catch(() => {});
-      }
     },
     pause: () => {
       const audio = document.querySelector("audio");

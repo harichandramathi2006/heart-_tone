@@ -53,7 +53,6 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({
     isMuted,
     repeatMode,
     autoplay,
-    currentTime,
     duration,
     setCurrentTime,
     setDuration,
@@ -216,6 +215,10 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({
           targetSrc = url || "";
         }
 
+        if (!targetSrc && currentSong.streamUrl && typeof currentSong.streamUrl === "string" && currentSong.streamUrl.startsWith("http")) {
+          targetSrc = currentSong.streamUrl;
+        }
+
         // Fallback: if no URL available (expired or missing), re-fetch from API
         if (
           !targetSrc &&
@@ -270,17 +273,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({
           srcChangedTimerRef.current = null;
         }, 3000);
 
-        // IMPORTANT: Must set crossOrigin BEFORE setting src, otherwise the browser will abort playback.
-        if (
-          targetSrc.startsWith("blob:") ||
-          targetSrc.startsWith("file:") ||
-          targetSrc.startsWith("ms-appdata:") ||
-          targetSrc.includes("_capacitor_file_")
-        ) {
-          audioRef.current!.removeAttribute("crossOrigin");
-        } else {
-          audioRef.current!.crossOrigin = "anonymous";
-        }
+        audioRef.current!.removeAttribute("crossOrigin");
         audioRef.current!.src = targetSrc;
       } else {
         // Src didn't change — any pause() below is intentional, not spurious.
@@ -374,11 +367,13 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({
   useEffect(() => {
     if (currentSong) {
       updateMediaMetadata(currentSong, isPlaying);
-      updatePositionState(currentTime, duration);
+      if (duration) {
+        updatePositionState(usePlayerStore.getState().currentTime, duration);
+      }
     } else {
       clearMediaMetadata();
     }
-  }, [currentSong?.id, isPlaying, currentTime, duration]);
+  }, [currentSong?.id, isPlaying, duration]);
 
   useEffect(() => {
     if (!isNative()) return;
@@ -559,7 +554,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({
         analytics.track("song_pause", {
           song_id: currentSong.id,
           song_title: currentSong.name,
-          current_time: currentTime,
+          current_time: usePlayerStore.getState().currentTime,
         });
       }
     }
@@ -636,7 +631,6 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({
           }
         }}
         className="hidden"
-        crossOrigin="anonymous"
         preload="auto"
         onError={handleError}
       />

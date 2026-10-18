@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { AnimatePresence } from "framer-motion";
 import { Search, Music2, Heart, ChevronLeft, WifiOff, Download } from "lucide-react";
@@ -76,7 +76,6 @@ export function AppLayout() {
     volume,
     isShuffle,
     repeatMode,
-    currentTime,
     duration,
     togglePlay,
     setVolume,
@@ -196,7 +195,7 @@ export function AppLayout() {
     }
   }, [next, repeatMode, playSong, addLast, pause]);
 
-  const appContextValue = {
+  const appContextValue = useMemo(() => ({
     currentSong,
     isPlaying,
     playSong: (song: any, songs?: any[]) => {
@@ -210,11 +209,11 @@ export function AppLayout() {
     likedSongs,
     handleLike,
     setLikedSongs: setAllLiked,
-    recentlyPlayed: [], // Could bridge to queueStore.history if needed
+    recentlyPlayed: [],
     handlePlayPause: togglePlay,
     addToQueue: (song: any) => useQueueStore.getState().addLast(song),
     playNext: (song: any) => useQueueStore.getState().addNext(song),
-  };
+  }), [currentSong, isPlaying, likedSongs, handleLike, setAllLiked, setQueue, playSong, togglePlay]);
 
   return (
     <AppContext.Provider value={appContextValue}>
@@ -359,7 +358,6 @@ export function AppLayout() {
         <PlayerBar
           currentSong={currentSong}
           isPlaying={isPlaying}
-          currentTime={currentTime}
           duration={duration}
           volume={volume}
           shuffle={isShuffle}
@@ -390,7 +388,6 @@ export function AppLayout() {
               onOpen={() => setNpOpen(true)}
               currentSong={currentSong}
               isPlaying={isPlaying}
-              currentTime={currentTime}
               duration={duration}
               volume={volume}
               shuffle={isShuffle}

@@ -864,7 +864,11 @@ export const HomePage = () => {
         if (t.includes("english") || t.includes("pop")) return 2;
         if (t.includes("tamil")) return 3;
         if (t.includes("hindi")) return 4;
-        return 5;
+        if (t.includes("telugu")) return 5;
+        if (t.includes("punjabi")) return 6;
+        if (t.includes("lo-fi") || t.includes("chill")) return 7;
+        if (t.includes("workout")) return 8;
+        return 9;
       };
       return [...list].sort((a: any, b: any) => getPriority(a.title) - getPriority(b.title));
     }

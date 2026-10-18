@@ -6,9 +6,48 @@
 // /songs/:id/suggestions returns success:false from JioSaavn's own backend for many
 // songs — this is a JioSaavn source-level issue, not fixable by switching wrappers.
 // Override via JIOSAAVN_API env variable if you have a private mirror.
-const JIOSAAVN_BASE =
-  process.env.JIOSAAVN_API || "https://jiosavan-api2.vercel.app/api";
+const DEFAULT_MIRRORS = [
+  process.env.JIOSAAVN_API,
+  process.env.JIOSAAVN_API_PRIMARY,
+  "https://jiosavan-api2.vercel.app/api",
+  "https://saavn.sumit.co/api",
+  process.env.JIOSAAVN_API_FALLBACK,
+].filter(Boolean) as string[];
+
+export const JIOSAAVN_MIRRORS = Array.from(new Set(DEFAULT_MIRRORS));
+const JIOSAAVN_BASE = JIOSAAVN_MIRRORS[0] || "https://jiosavan-api2.vercel.app/api";
 const REQUEST_TIMEOUT = 5000; // 5 seconds
+
+// Single-API fetchSafe with seamless mirror fallback
+const fetchSafe = async (urlOrPath: string, attempts = 2): Promise<any> => {
+  let subpath = urlOrPath;
+  const knownBases = [
+    "https://jiosavan-api2.vercel.app/api",
+    "https://saavn.sumit.co/api",
+    ...JIOSAAVN_MIRRORS,
+  ];
+  for (const base of knownBases) {
+    if (subpath.startsWith(base)) {
+      subpath = subpath.slice(base.length);
+      break;
+    }
+  }
+  if (!subpath.startsWith("/")) subpath = "/" + subpath;
+
+  // Try each mirror until one succeeds
+  for (let mIdx = 0; mIdx < JIOSAAVN_MIRRORS.length; mIdx++) {
+    const base = JIOSAAVN_MIRRORS[mIdx];
+    const fullUrl = `${base}${subpath}`;
+    try {
+      const res = await fetchWithRetry(fullUrl, mIdx === 0 ? attempts : 1);
+      if (res && res.success !== false) return res;
+    } catch {
+      // Continue to next mirror
+    }
+  }
+
+  return null;
+};
 
 // JioSaavnSong definition used by other files that import it
 export interface JioSaavnSong {
@@ -128,38 +167,7 @@ async function fetchWithRetry(
   }
 }
 
-// Single-API fetchSafe — calls JIOSAAVN_BASE directly.
-// No more multi-wrapper loop that wastes time on broken APIs.
-// JIOSAAVN_BASE defaults to jiosaavn.rajputhemant.dev which is the
-// only wrapper that supports ALL endpoints including /suggestions.
-const fetchSafe = async (urlOrPath: string, attempts = 2): Promise<any> => {
-  // Normalize to a subpath — strip any known base prefix if the caller
-  // passed a full URL instead of a path
-  let subpath = urlOrPath;
-  const knownBases = [
-    "https://jiosavan-api2.vercel.app/api",
-    "https://saavn.sumit.co/api",
-    JIOSAAVN_BASE,
-  ];
-  for (const base of knownBases) {
-    if (subpath.startsWith(base)) {
-      subpath = subpath.slice(base.length);
-      break;
-    }
-  }
-  if (!subpath.startsWith("/")) subpath = "/" + subpath;
 
-  const fullUrl = `${JIOSAAVN_BASE}${subpath}`;
-  try {
-    const res = await fetchWithRetry(fullUrl, attempts);
-    if (res && res.success !== false) return res;
-    if (res) console.warn(`[JioSaavn] API returned error for ${subpath}: ${res.message || "unknown"}`);
-  } catch (err: any) {
-    console.error(`[JioSaavn] Request failed for ${subpath}: ${err.message}`);
-  }
-
-  return null;
-};
 
 // ── Direct jiosaavn.com fetcher (needs Referer header) ─────────────────
 const JIOSAAVN_DIRECT = "https://www.jiosaavn.com/api.php";
@@ -238,6 +246,26 @@ export async function searchSongsHybrid(
 
   // ── TIER 1: direct jiosaavn.com returned results ────────────────────
   if (rawDirect.length > 0) {
+    const wrapperMap = new Map<string, any>();
+    for (const s of rawWrapper) {
+      const id = String(s.id || "");
+      if (id) wrapperMap.set(id, s);
+    }
+
+    // Enrich direct songs with working downloadUrls & images from wrapper
+    for (const d of rawDirect) {
+      const id = String(d.id || "");
+      const w = wrapperMap.get(id);
+      if (w) {
+        if (Array.isArray(w.downloadUrl) && w.downloadUrl.length > 0) {
+          d.downloadUrl = w.downloadUrl;
+        }
+        if (w.image) {
+          d.image = w.image;
+        }
+      }
+    }
+
     // Merge wrapper results for extra coverage (dedup by ID)
     const seen = new Set<string>(rawDirect.map((s: any) => String(s.id || "")));
     const combined = [...rawDirect];
@@ -466,11 +494,11 @@ export function normalizeSongToCanonical(raw: any): Song | null {
   // ✅ FIX: Direct jiosaavn.com songs carry stream URL in root or more_info
   // This fires when Tier 1 wins and no enrichment loop ran
   const encUrl = raw.encrypted_media_url || raw.more_info?.encrypted_media_url;
-  if (!streamUrl && encUrl) {
+  if (!streamUrl && encUrl && typeof encUrl === "string" && encUrl.startsWith("http")) {
     streamUrl = decodeHtmlEntities(encUrl);
   }
   const medUrl = raw.media_url || raw.more_info?.media_url;
-  if (!streamUrl && medUrl) {
+  if (!streamUrl && medUrl && typeof medUrl === "string" && medUrl.startsWith("http")) {
     streamUrl = decodeHtmlEntities(medUrl);
   }
 

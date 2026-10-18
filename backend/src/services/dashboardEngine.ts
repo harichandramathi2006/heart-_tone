@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 import { ListeningHistory } from "../models/ListeningHistory.js";
 import { Playlist } from "../models/Playlist.js";
 import { User } from "../models/User.js";
-import { fetchSongById, Song } from "./jiosaavn.js";
+import { fetchSongById, searchSongs, normalizeSongsToCanonical, Song } from "./jiosaavn.js";
 import { redisGet, redisSet, redisDel } from "./redis.js";
 import {
   getTasteProfile,
@@ -240,14 +240,20 @@ export async function buildDashboard(
       }
     }
 
-    const [rawGlobal, english, tamil, hindi] = await Promise.all([
+    const [rawGlobal, english, tamil, hindi, telugu, punjabi, rawLofi, rawWorkout] = await Promise.all([
       getIndustryNewReleases(["english", "pop", "french", "spanish", "latin"], 35),
       getIndustryNewReleases(["english"], 25),
       getIndustryNewReleases(["tamil"], 25),
       getIndustryNewReleases(["hindi"], 25),
+      getIndustryNewReleases(["telugu"], 25),
+      getIndustryNewReleases(["punjabi"], 25),
+      searchSongs("chill lofi songs", 25).catch(() => []),
+      searchSongs("gym workout songs", 25).catch(() => []),
     ]);
 
     const pureGlobal = rawGlobal.filter((s) => !isIndianSong(s));
+    const lofiSongs = normalizeSongsToCanonical(rawLofi);
+    const workoutSongs = normalizeSongsToCanonical(rawWorkout);
 
     guestNewReleases = [
       {
@@ -256,7 +262,11 @@ export async function buildDashboard(
       },
       { title: "Tamil Chartbusters", songs: tamil },
       { title: "Hindi Hits & Releases", songs: hindi },
+      { title: "Telugu Top Hits", songs: telugu },
+      { title: "Punjabi Hits & Bangers", songs: punjabi },
       { title: "Trending English Hits", songs: english },
+      { title: "Late Night Lo-Fi & Chill", songs: lofiSongs },
+      { title: "High-Energy Workout Mix", songs: workoutSongs },
     ].filter((sec) => sec.songs && sec.songs.length > 0);
 
     newReleasesTitle = `New ${langs.map((l) => l.charAt(0).toUpperCase() + l.slice(1)).join(" & ")} Releases`;

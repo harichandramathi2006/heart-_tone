@@ -604,7 +604,9 @@ export function parseQuery(raw: string): ParsedQuery {
         );
       }
       if (!movie && !artist && songName) {
-        expandedQueries.push(`${songName} song`, `${songName} official`);
+        if (words.length <= 2) {
+          expandedQueries.push(`${songName} song`, `${songName} official`);
+        }
       }
       break;
 
@@ -758,7 +760,8 @@ export function scoreSong(song: JioSaavnSong, parsed: ParsedQuery): ScoredSong {
   ];
   const allArtistStr = allArtists.join(" ");
 
-  // ═══ TITLE MATCHING ═══
+  // ═══ TITLE & LYRIC MATCHING ═══
+  const isMultiWordLyricQuery = queryWords.length >= 3;
   if (titleLower === queryLower) {
     score += 100;
     reasons.push("exact_title");
@@ -779,6 +782,9 @@ export function scoreSong(song: JioSaavnSong, parsed: ParsedQuery): ScoredSong {
           (matched.length / Math.max(songNameTokens.length, 1)) * 40,
         );
         reasons.push("partial_title");
+      } else if (isMultiWordLyricQuery) {
+        score += 40;
+        reasons.push("lyrics_index_match");
       }
     }
   }
@@ -841,6 +847,10 @@ export function scoreSong(song: JioSaavnSong, parsed: ParsedQuery): ScoredSong {
 
   // ═══ POPULARITY BOOST ═══
   const playCount = (song as any).play_count || (song as any).playCount || 0;
+  if (isMultiWordLyricQuery && playCount > 10_000_000) {
+    score += 45;
+    reasons.push("lyric_hit_boost");
+  }
   if (playCount > 50_000_000) {
     score += 50;
     reasons.push("mega_hit");
@@ -849,7 +859,7 @@ export function scoreSong(song: JioSaavnSong, parsed: ParsedQuery): ScoredSong {
     reasons.push("very_popular");
   } else if (playCount > 1_000_000) {
     score += 15;
-  } else if (playCount > 0 && playCount < 10_000) {
+  } else if (playCount > 0 && playCount < 10_000 && !isMultiWordLyricQuery) {
     score -= 15;
     reasons.push("low_plays_penalty");
   }

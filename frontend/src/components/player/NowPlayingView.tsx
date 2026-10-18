@@ -48,8 +48,8 @@ interface NowPlayingViewProps {
   onOpen?: () => void;
   currentSong: any;
   isPlaying: boolean;
-  currentTime: number;
-  duration: number;
+  currentTime?: number;
+  duration?: number;
   volume: number;
   shuffle: boolean;
   repeat: string;
@@ -86,8 +86,8 @@ export const NowPlayingView = ({
   onOpen,
   currentSong,
   isPlaying,
-  currentTime,
-  duration,
+  currentTime: propCurrentTime,
+  duration: propDuration,
   volume,
   shuffle,
   repeat,
@@ -111,6 +111,10 @@ export const NowPlayingView = ({
   onRemove,
   onShuffleQueue,
 }: NowPlayingViewProps) => {
+  const storeCurrentTime = usePlayerStore((s) => s.currentTime);
+  const storeDuration = usePlayerStore((s) => s.duration);
+  const currentTime = propCurrentTime !== undefined ? propCurrentTime : storeCurrentTime;
+  const duration = propDuration !== undefined ? propDuration : storeDuration;
   const [bgColor, setBgColor] = useState("#18181a");
   const [showVol, setShowVol] = useState(false);
   const [showQueue, setShowQueue] = useState(false);

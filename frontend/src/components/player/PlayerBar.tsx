@@ -15,12 +15,13 @@ import {
 } from "lucide-react";
 import { bestImg, getArtists, fmt, onImgErr } from "../../lib/helpers";
 import { FALLBACK_IMG } from "../../lib/constants";
+import { usePlayerStore } from "../../store/playerStore";
 
 interface PlayerBarProps {
   currentSong: any;
   isPlaying: boolean;
-  currentTime: number;
-  duration: number;
+  currentTime?: number;
+  duration?: number;
   volume: number;
   shuffle: boolean;
   repeat: string;
@@ -49,8 +50,8 @@ const VolumeIcon = ({ volume }: { volume: number }) => {
 export const PlayerBar = ({
   currentSong,
   isPlaying,
-  currentTime,
-  duration,
+  currentTime: propCurrentTime,
+  duration: propDuration,
   volume,
   shuffle,
   repeat,
@@ -69,6 +70,10 @@ export const PlayerBar = ({
   onToggleQueue,
   queueOpen,
 }: PlayerBarProps) => {
+  const storeCurrentTime = usePlayerStore((s) => s.currentTime);
+  const storeDuration = usePlayerStore((s) => s.duration);
+  const currentTime = propCurrentTime !== undefined ? propCurrentTime : storeCurrentTime;
+  const duration = propDuration !== undefined ? propDuration : storeDuration;
   const progress = duration ? currentTime / duration : 0;
   const volPct = Math.round(volume * 100);
   const img = currentSong

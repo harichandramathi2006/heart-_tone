@@ -15,7 +15,7 @@ const JIOSAAVN_EXTERNAL =
 
 const client = axios.create({
   baseURL: `${BACKEND_URL}/api/search`,
-  timeout: 10000,
+  timeout: 30000,
   withCredentials: true,
 });
 

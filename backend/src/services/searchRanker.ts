@@ -144,6 +144,12 @@ function computeScore(
     score -= 50;
   }
 
+  // Multi-word song line / lyrics boost for original mega-hits
+  const queryWordCount = q.split(/\s+/).filter((w) => w.length > 1).length;
+  if (queryWordCount >= 3 && song.playCount > 5_000_000) {
+    score += 35;
+  }
+
   // ── 11. USER PERSONALIZATION BOOST (0–65 pts) ─────────────────
   if (userContext) {
     if (userContext.likedSongIds && song.id && userContext.likedSongIds.has(song.id)) {
@@ -200,6 +206,8 @@ function titleMatchScore(title: string, query: string): number {
   if (ratio >= 0.75) return 20; // 75%+ words match
   if (ratio >= 0.5) return 10; // 50%+ words match
   if (ratio >= 0.25) return 3; // some words match
+  // For queries with 3+ words (e.g. lyrics/song lines), JioSaavn matched it via lyrics
+  if (qWords.length >= 3) return 15;
   return 0;
 }
 
