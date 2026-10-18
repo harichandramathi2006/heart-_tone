@@ -14,7 +14,6 @@ import {
   fetchAlbumSongs,
   fetchSongById,
   fetchSongsByIds,
-  getSongsDetailsBatch,
   getSuggestions,
   getTopSearches,
   getArtistDetails,
@@ -259,31 +258,6 @@ router.get("/", softAuth, async (req: SoftAuthRequest, res: Response): Promise<v
     // Cache the full ranked pool (up to 100) so any future request can get its own limit
     const allSongs = ranked.slice(0, 100);
     const songs = allSongs.slice(0, limit);
-
-    // Guaranteed instant play: ensure top 10 returned songs have working downloadUrl
-    const topMissing = songs.slice(0, 10).filter((s) => !s.downloadUrl || s.downloadUrl.length === 0);
-    if (topMissing.length > 0) {
-      try {
-        const enrichedBatch = await getSongsDetailsBatch(topMissing.map((s) => s.id));
-        for (const item of enrichedBatch) {
-          const id = String(item.id || "");
-          if (id && Array.isArray(item.downloadUrl) && item.downloadUrl.length > 0) {
-            const match = allSongs.find((s) => s.id === id);
-            if (match) {
-              match.downloadUrl = item.downloadUrl;
-              const ORDER = ["320kbps", "160kbps", "96kbps", "48kbps", "12kbps"];
-              for (const q of ORDER) {
-                const entry = item.downloadUrl.find((d: any) => d.quality === q);
-                if (entry?.url?.startsWith("http")) {
-                  match.streamUrl = entry.url;
-                  break;
-                }
-              }
-            }
-          }
-        }
-      } catch {}
-    }
 
     const relatedSearches = generateRelatedSearches(q, artists, songs);
 
