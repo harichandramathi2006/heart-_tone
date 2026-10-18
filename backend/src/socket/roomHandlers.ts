@@ -367,7 +367,7 @@ export function setupRoomHandlers(io: Server, socket: Socket): void {
   });
 
   // ── Messages ────────────────────────────────────────────────────────
-  socket.on("duo:message", async ({ text }: { text: string }) => {
+  socket.on("duo:message", async ({ text, audio, type = "text", duration }: { text?: string; audio?: string; type?: "text" | "voice"; duration?: number }) => {
     const code = findSocketRoom(socket.id);
     if (!code) return;
     const room = rooms.get(code);
@@ -377,19 +377,30 @@ export function setupRoomHandlers(io: Server, socket: Socket): void {
     const fromRole = isHost ? "host" : "guest";
     const fromName = isHost ? room.host.name : room.guest.name || "Guest";
 
-    const msg = { text, from: fromRole, fromName, at: Date.now() };
+    const msg = {
+      text: text || (type === "voice" ? "🎤 Voice message" : ""),
+      audio: audio || undefined,
+      type: type || "text",
+      duration: duration || undefined,
+      from: fromRole,
+      fromName,
+      at: Date.now(),
+    };
     room.messages.push(msg);
     room.stats.messagesCount++;
     room.lastActivity = Date.now();
 
     debugLog(
-      `[Duo] 💬 message → room ${code} | ${fromName}: "${text.slice(0, 50)}${text.length > 50 ? "…" : ""}"`,
+      `[Duo] 💬 ${type} message → room ${code} | ${fromName}: "${(text || type).slice(0, 50)}"`,
     );
     socket.to(code).emit("duo:receive-message", msg);
 
     try {
       await DuoSessionService.addMessage(code, {
-        text,
+        text: msg.text,
+        audio: msg.audio,
+        type: msg.type,
+        duration: msg.duration,
         from: fromRole,
         fromName,
         at: new Date(msg.at),

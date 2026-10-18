@@ -83,3 +83,62 @@ export function registerNotificationListeners(callbacks: {
     },
   );
 }
+
+/**
+ * Trigger notification when a chat message or voice note is received.
+ * Works natively on Android APK via LocalNotifications, and in browsers via Web Notifications API.
+ */
+let nextMessageNotificationId = 2000;
+
+export async function triggerChatMessageNotification(msg: {
+  fromName: string;
+  text?: string;
+  type?: string;
+}) {
+  const sender = msg.fromName || "HeartLink Partner";
+  const body = msg.type === "voice" ? "🎤 Sent a voice message" : msg.text || "Sent a message";
+
+  if (isNative()) {
+    try {
+      const perm = await LocalNotifications.requestPermissions();
+      if (perm.display !== "granted") return;
+
+      const notifId = ++nextMessageNotificationId;
+      await LocalNotifications.schedule({
+        notifications: [
+          {
+            id: notifId,
+            title: `HeartLink • ${sender}`,
+            body,
+            smallIcon: "ic_notification",
+            iconColor: "#1db954",
+            autoCancel: true,
+            extra: { action: "chat_message" },
+          },
+        ],
+      });
+    } catch (e) {
+      console.warn("[Notification] Native chat notification error:", e);
+    }
+  } else if (typeof window !== "undefined" && "Notification" in window) {
+    try {
+      if (Notification.permission === "granted") {
+        new Notification(`HeartLink • ${sender}`, {
+          body,
+          icon: "/icon.png",
+        });
+      } else if (Notification.permission !== "denied") {
+        const perm = await Notification.requestPermission();
+        if (perm === "granted") {
+          new Notification(`HeartLink • ${sender}`, {
+            body,
+            icon: "/icon.png",
+          });
+        }
+      }
+    } catch (e) {
+      console.warn("[Notification] Web chat notification error:", e);
+    }
+  }
+}
+

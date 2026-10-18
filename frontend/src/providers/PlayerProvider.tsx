@@ -36,7 +36,7 @@ interface PlayerContextType {
     createSession: (name: string) => Promise<string | null>;
     joinSession: (code: string, name: string) => Promise<boolean>;
     endSession: () => void;
-    sendMessage: (text: string) => void;
+    sendMessage: (payload: string | { text?: string; audio?: string; type?: "text" | "voice"; duration?: number }) => void;
   };
 }
 

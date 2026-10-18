@@ -30,8 +30,11 @@ export const getPersistedSession = (): SessionData | null => {
 
 const saved = getPersistedSession();
 
-interface DuoMessage {
+export interface DuoMessage {
   text: string;
+  audio?: string;
+  type?: "text" | "voice";
+  duration?: number;
   from: string;
   fromName: string;
   at: number;

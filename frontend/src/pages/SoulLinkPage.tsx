@@ -22,6 +22,11 @@ import {
   ChevronRight,
   LogOut,
   Volume2,
+  Mic,
+  MicOff,
+  Square,
+  Pause,
+  AlertCircle,
 } from "lucide-react";
 import { useDuoStore } from "../duo/duoStore";
 import { useNetwork } from "../providers/NetworkProvider";
@@ -96,9 +101,109 @@ const StatusPulse = ({
   );
 };
 
-// ── Isolated Chat Input to prevent parent re-renders while typing ────
-const ChatInput = ({ onSend }: { onSend: (text: string) => void }) => {
+// ── Audio Message Bubble Component ──────────────────────────────────
+const VoiceMessageBubble = ({
+  audioSrc,
+  duration,
+  isMe,
+}: {
+  audioSrc: string;
+  duration?: number;
+  isMe: boolean;
+}) => {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    const handleTime = () => {
+      if (audio.duration) {
+        setProgress((audio.currentTime / audio.duration) * 100);
+      }
+    };
+    const handleEnd = () => {
+      setIsPlaying(false);
+      setProgress(0);
+    };
+    audio.addEventListener("timeupdate", handleTime);
+    audio.addEventListener("ended", handleEnd);
+    return () => {
+      audio.removeEventListener("timeupdate", handleTime);
+      audio.removeEventListener("ended", handleEnd);
+    };
+  }, []);
+
+  const toggle = () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (isPlaying) {
+      audio.pause();
+      setIsPlaying(false);
+    } else {
+      audio.play().then(() => setIsPlaying(true)).catch(() => {});
+    }
+  };
+
+  const formatSec = (s: number) => {
+    const mins = Math.floor(s / 60);
+    const secs = Math.floor(s % 60);
+    return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
+  };
+
+  return (
+    <div
+      className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-2xl max-w-[85%] ${
+        isMe
+          ? "bg-sp-green text-black rounded-br-none shadow-md shadow-sp-green/10"
+          : "bg-white/[0.08] text-white rounded-bl-none border border-white/[0.05]"
+      }`}
+    >
+      <audio ref={audioRef} src={audioSrc} preload="metadata" />
+      <button
+        type="button"
+        onClick={toggle}
+        className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition-transform active:scale-95 ${
+          isMe
+            ? "bg-black text-white hover:bg-black/80"
+            : "bg-sp-green text-black hover:bg-sp-green/90"
+        }`}
+      >
+        {isPlaying ? <Pause size={13} fill="currentColor" /> : <Play size={13} fill="currentColor" className="ml-0.5" />}
+      </button>
+
+      <div className="flex flex-col gap-1 min-w-[120px] sm:min-w-[160px]">
+        <div className="flex items-center justify-between text-[11px] font-semibold tabular-nums opacity-80">
+          <span className="flex items-center gap-1">
+            <Mic size={10} /> Voice Note
+          </span>
+          <span>{duration ? formatSec(duration) : "0:00"}</span>
+        </div>
+        <div className={`h-1.5 w-full rounded-full overflow-hidden ${isMe ? "bg-black/20" : "bg-white/10"}`}>
+          <div
+            className={`h-full transition-all duration-100 rounded-full ${isMe ? "bg-black" : "bg-sp-green"}`}
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ── Isolated Chat Input with Voice Recorder ─────────────────────────
+const ChatInput = ({
+  onSend,
+}: {
+  onSend: (payload: string | { text?: string; audio?: string; type?: "text" | "voice"; duration?: number }) => void;
+}) => {
   const [text, setText] = useState("");
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordSecs, setRecordSecs] = useState(0);
+
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const recordTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -108,25 +213,142 @@ const ChatInput = ({ onSend }: { onSend: (text: string) => void }) => {
     }
   };
 
+  const startRecording = async () => {
+    try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        toast.error("Microphone access is not supported on this browser.");
+        return;
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioChunksRef.current = [];
+      const recorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = recorder;
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          audioChunksRef.current.push(e.data);
+        }
+      };
+
+      recorder.onstop = () => {
+        stream.getTracks().forEach((track) => track.stop());
+        const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+        const reader = new FileReader();
+        reader.readAsDataURL(audioBlob);
+        reader.onloadend = () => {
+          const base64Audio = reader.result as string;
+          if (base64Audio) {
+            onSend({
+              type: "voice",
+              audio: base64Audio,
+              duration: recordSecs,
+              text: "🎤 Voice message",
+            });
+          }
+        };
+        setIsRecording(false);
+        setRecordSecs(0);
+      };
+
+      recorder.start();
+      setIsRecording(true);
+      setRecordSecs(0);
+      recordTimerRef.current = setInterval(() => {
+        setRecordSecs((s) => s + 1);
+      }, 1000);
+    } catch (err) {
+      console.error("[Chat] Mic error:", err);
+      toast.error("Microphone permission required for voice notes.");
+      setIsRecording(false);
+    }
+  };
+
+  const stopRecording = () => {
+    if (recordTimerRef.current) {
+      clearInterval(recordTimerRef.current);
+      recordTimerRef.current = null;
+    }
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+      mediaRecorderRef.current.stop();
+    }
+  };
+
+  const cancelRecording = () => {
+    if (recordTimerRef.current) {
+      clearInterval(recordTimerRef.current);
+      recordTimerRef.current = null;
+    }
+    if (mediaRecorderRef.current) {
+      mediaRecorderRef.current.ondataavailable = null;
+      mediaRecorderRef.current.onstop = null;
+      if (mediaRecorderRef.current.state === "recording") {
+        mediaRecorderRef.current.stop();
+      }
+    }
+    setIsRecording(false);
+    setRecordSecs(0);
+  };
+
   return (
     <form
       onSubmit={handleSubmit}
-      className="p-3.5 border-t border-white/[0.04] flex-shrink-0 bg-[#0c0c10]/40 flex gap-2"
+      className="p-3 border-t border-white/[0.04] flex-shrink-0 bg-[#0c0c10]/60 flex items-center gap-2"
     >
-      <input
-        type="text"
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        placeholder="Type a message..."
-        className="flex-1 bg-white/[0.03] border border-white/[0.06] rounded-xl px-4 py-3 text-white placeholder-white/20 focus:outline-none focus:border-sp-green/30 focus:bg-white/[0.05] transition-all text-sm"
-      />
-      <button
-        type="submit"
-        disabled={!text.trim()}
-        className="w-11 h-11 rounded-xl bg-sp-green flex items-center justify-center text-black hover:scale-105 active:scale-95 transition-all disabled:opacity-30 disabled:hover:scale-100 flex-shrink-0"
-      >
-        <Send size={16} />
-      </button>
+      {isRecording ? (
+        <div className="flex-1 flex items-center justify-between bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-2.5">
+          <div className="flex items-center gap-2 text-red-400">
+            <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping" />
+            <span className="text-xs font-bold tabular-nums">
+              Recording: {Math.floor(recordSecs / 60)}:{(recordSecs % 60) < 10 ? "0" : ""}{recordSecs % 60}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={cancelRecording}
+              className="text-xs text-white/40 hover:text-white px-2 py-1 rounded-lg"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={stopRecording}
+              className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-md shadow-red-500/20"
+            >
+              <Square size={11} fill="currentColor" />
+              Send Voice
+            </button>
+          </div>
+        </div>
+      ) : (
+        <>
+          <input
+            type="text"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="Type a message..."
+            className="flex-1 bg-white/[0.03] border border-white/[0.06] rounded-xl px-4 py-2.5 text-white placeholder-white/20 focus:outline-none focus:border-sp-green/30 focus:bg-white/[0.05] transition-all text-xs sm:text-sm"
+          />
+
+          <button
+            type="button"
+            onClick={startRecording}
+            title="Record Voice Note"
+            className="w-10 h-10 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.06] flex items-center justify-center text-white/70 hover:text-white active:scale-95 transition-all flex-shrink-0"
+          >
+            <Mic size={17} />
+          </button>
+
+          <button
+            type="submit"
+            disabled={!text.trim()}
+            className="w-10 h-10 rounded-xl bg-sp-green flex items-center justify-center text-black hover:scale-105 active:scale-95 transition-all disabled:opacity-20 disabled:hover:scale-100 flex-shrink-0"
+          >
+            <Send size={15} />
+          </button>
+        </>
+      )}
     </form>
   );
 };
@@ -143,7 +365,7 @@ const ChatPanel = ({
   role: string;
   partnerConnected: boolean;
   partnerName: string;
-  onSendMessage: (text: string) => void;
+  onSendMessage: (payload: any) => void;
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -152,7 +374,7 @@ const ChatPanel = ({
   }, [messages.length]);
 
   return (
-    <div className="glass rounded-2xl overflow-hidden flex flex-col h-[480px] md:h-[520px] w-full border border-white/[0.04] shadow-2xl">
+    <div className="glass rounded-2xl overflow-hidden flex flex-col h-[420px] sm:h-[460px] md:h-[520px] w-full border border-white/[0.04] shadow-2xl">
       <div className="px-5 py-4 border-b border-white/[0.05] flex items-center gap-2 flex-shrink-0 bg-white/[0.01]">
         <MessageCircle size={16} className="text-sp-green" />
         <span className="text-xs font-bold text-white/80 uppercase tracking-wider">
@@ -165,7 +387,7 @@ const ChatPanel = ({
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto p-5 space-y-3.5 thin-scrollbar flex-col flex bg-black/15">
+      <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3 thin-scrollbar flex-col flex bg-black/15">
         {!partnerConnected ? (
           <div className="flex flex-col items-center justify-center py-12 flex-1 text-center px-4">
             <motion.div
@@ -185,25 +407,34 @@ const ChatPanel = ({
         ) : messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 flex-1 text-white/20 text-center">
             <MessageCircle size={22} className="mb-2 text-white/10" />
-            <span className="text-xs">No messages yet. Send one to start the conversation!</span>
+            <span className="text-xs">No messages yet. Send a message or voice note!</span>
           </div>
         ) : (
-          messages.map((m) => {
+          messages.map((m, idx) => {
             const isMe = m.from === role;
+            const isVoice = m.type === "voice" && m.audio;
             return (
               <div
-                key={`${m.at}-${m.from}-${m.text}`}
+                key={`${m.at}-${m.from}-${idx}`}
                 className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}
               >
-                <div
-                  className={`px-4 py-2.5 rounded-2xl text-[13px] max-w-[85%] leading-relaxed ${
-                    isMe
-                      ? "bg-sp-green text-black font-semibold rounded-br-none shadow-md shadow-sp-green/5"
-                      : "bg-white/[0.06] text-white/90 rounded-bl-none border border-white/[0.04]"
-                  }`}
-                >
-                  {m.text}
-                </div>
+                {isVoice ? (
+                  <VoiceMessageBubble
+                    audioSrc={m.audio}
+                    duration={m.duration}
+                    isMe={isMe}
+                  />
+                ) : (
+                  <div
+                    className={`px-4 py-2.5 rounded-2xl text-[13px] max-w-[85%] leading-relaxed ${
+                      isMe
+                        ? "bg-sp-green text-black font-semibold rounded-br-none shadow-md shadow-sp-green/5"
+                        : "bg-white/[0.06] text-white/90 rounded-bl-none border border-white/[0.04]"
+                    }`}
+                  >
+                    {m.text}
+                  </div>
+                )}
                 <span className="text-[9px] text-white/20 mt-1 px-1 font-medium tracking-wide">
                   {isMe ? "You" : m.fromName || partnerName}
                 </span>
@@ -244,8 +475,8 @@ const SoulLinkHub = ({
   copied: boolean;
 }) => {
   return (
-    <div className="glass rounded-2xl p-5 sm:p-6 border border-white/[0.04] shadow-2xl flex flex-col gap-6 w-full min-h-[460px] md:h-[520px] justify-between">
-      <div className="flex flex-col gap-6">
+    <div className="glass rounded-2xl p-4 sm:p-6 border border-white/[0.04] shadow-2xl flex flex-col gap-5 sm:gap-6 w-full min-h-[400px] md:h-[520px] justify-between">
+      <div className="flex flex-col gap-5 sm:gap-6">
         {/* Header Info */}
         <div className="flex items-start justify-between">
           <div className="space-y-1.5">

@@ -11,6 +11,7 @@ import { useDuoStore, getPersistedSession } from "./duoStore";
 import { getNativeToken } from "../api/backend";
 import { isNative } from "../utils/platform";
 import { analytics } from "../services/analytics";
+import { triggerChatMessageNotification } from "../capacitor/notifications";
 
 const LIVE_URL = "https://heart-tone-l4h3.onrender.com";
 const rawDuo = import.meta.env.VITE_DUO_BACKEND || import.meta.env.VITE_BACKEND_URL || "";
@@ -279,17 +280,25 @@ export function useDuo({
     [emitWhenReady],
   );
 
-  // ═══ MESSAGES ═════════════════════════════════════════════════════
-  const sendMessage = useCallback((text: string) => {
+  // ═══ MESSAGES & VOICE NOTES ══════════════════════════════════════
+  const sendMessage = useCallback((payload: string | { text?: string; audio?: string; type?: "text" | "voice"; duration?: number }) => {
     if (!store.getState().active) return;
+    const isVoice = typeof payload !== "string" && payload.type === "voice";
+    const text = typeof payload === "string" ? payload : payload.text || (isVoice ? "🎤 Voice message" : "");
+    const audio = typeof payload !== "string" ? payload.audio : undefined;
+    const duration = typeof payload !== "string" ? payload.duration : undefined;
+
     const msg = {
       text,
+      audio,
+      type: (isVoice ? "voice" : "text") as "text" | "voice",
+      duration,
       from: store.getState().role!,
       fromName: store.getState().myName,
       at: Date.now(),
     };
     store.getState().addMessage(msg);
-    getSocket().emit("duo:message", { text });
+    getSocket().emit("duo:message", { text, audio, type: msg.type, duration });
   }, []);
 
   // ═══ END SESSION ══════════════════════════════════════════════════
@@ -621,7 +630,10 @@ export function useDuo({
 
         // ── Messages ───────────────────────────────────────────
         case "duo:receive-message": {
-          if (data) store.getState().addMessage(data);
+          if (data) {
+            store.getState().addMessage(data);
+            triggerChatMessageNotification(data);
+          }
           break;
         }
 

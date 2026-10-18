@@ -19,7 +19,15 @@ export interface IDuoSession extends Document {
   currentTime: number;
   reactions: { emoji: string; from: string; at: Date }[];
   notes: { songId: string; text: string; from: string; at: Date }[];
-  messages: { text: string; from: string; fromName: string; at: Date }[];
+  messages: {
+    text: string;
+    audio?: string;
+    type?: string;
+    duration?: number;
+    from: string;
+    fromName: string;
+    at: Date;
+  }[];
   songHistory: Record<string, unknown>[];
   stats: {
     duration: number;
@@ -69,6 +77,9 @@ const DuoSessionSchema = new Schema<IDuoSession>(
     messages: [
       {
         text: String,
+        audio: { type: String, default: null },
+        type: { type: String, default: "text" },
+        duration: { type: Number, default: 0 },
         from: String,
         fromName: String,
         at: { type: Date, default: Date.now },
