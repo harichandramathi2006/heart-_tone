@@ -375,8 +375,19 @@ export const KNOWN_SONGS: Record<string, string> = {
   mersalaayitten: "Anirudh Ravichander",
   "aalaporaan tamizhan": "Anirudh Ravichander",
   "beast mode": "Anirudh Ravichander",
-  "naalo nagaram": "Anirudh Ravichander",
   "venpani malare": "Sid Sriram",
+  "naan autokaaran": "Deva",
+  "autokaaran": "Deva",
+  "vandhenda paalkaaran": "Deva",
+  salomiya: "Deva",
+  "kavalai padathe sagodhara": "Deva",
+  "aasaiyil oru kaditham": "Deva",
+  meenamma: "Deva",
+  "kotta paakkum": "Deva",
+  "konja naal poru thalaiva": "Deva",
+  baashha: "Deva",
+  basha: "Deva",
+  annamalai: "Deva",
 };
 
 // Returns the known artist for a query, or null

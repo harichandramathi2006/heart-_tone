@@ -185,6 +185,11 @@ export const MOVIE_DICT: Record<string, MovieEntity> = {
   animal: { name: "Animal", director: "Sandeep Reddy Vanga", actors: ["Ranbir Kapoor"], composer: "Pritam", releaseYear: 2023 },
   kalki: { name: "Kalki 2898 AD", director: "Nag Ashwin", actors: ["Prabhas"], composer: "Santhosh Narayanan", releaseYear: 2024 },
   "kalki 2898 ad": { name: "Kalki 2898 AD", director: "Nag Ashwin", actors: ["Prabhas"], composer: "Santhosh Narayanan", releaseYear: 2024 },
+  baashha: { name: "Baashha", director: "Suresh Krissna", actors: ["Rajinikanth"], composer: "Deva", releaseYear: 1995 },
+  annamalai: { name: "Annamalai", director: "Suresh Krissna", actors: ["Rajinikanth"], composer: "Deva", releaseYear: 1992 },
+  arunachalam: { name: "Arunachalam", director: "Sundar C.", actors: ["Rajinikanth"], composer: "Deva", releaseYear: 1997 },
+  kushi: { name: "Kushi", director: "S.J. Suryah", actors: ["Thalapathy Vijay"], composer: "Deva", releaseYear: 2000 },
+  aasai: { name: "Aasai", director: "Vasanth", actors: ["Ajith Kumar"], composer: "Deva", releaseYear: 1995 },
 };
 
 // ── Extended Phonetic / Typo Corrections ──────────────────────────
@@ -203,6 +208,9 @@ export const EXTENDED_PHONETIC_MAP: Record<string, string> = {
   "shape of u": "shape of you",
   "tumhi ho": "tum hi ho",
   // Artists
+  dava: "deva",
+  "dava songs": "deva songs",
+  "singer dava": "singer deva",
   anrudh: "anirudh",
   anirudha: "anirudh",
   "tailor swift": "taylor swift",

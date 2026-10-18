@@ -240,7 +240,20 @@ export async function buildDashboard(
       }
     }
 
-    const [rawGlobal, english, tamil, hindi, telugu, punjabi, rawLofi, rawWorkout] = await Promise.all([
+    const [
+      rawGlobal,
+      english,
+      tamil,
+      hindi,
+      telugu,
+      punjabi,
+      rawLofi,
+      rawWorkout,
+      rawDeva,
+      rawAnirudh,
+      rawARRahman,
+      rawYuvan,
+    ] = await Promise.all([
       getIndustryNewReleases(["english", "pop", "french", "spanish", "latin"], 35),
       getIndustryNewReleases(["english"], 25),
       getIndustryNewReleases(["tamil"], 25),
@@ -249,11 +262,19 @@ export async function buildDashboard(
       getIndustryNewReleases(["punjabi"], 25),
       searchSongs("chill lofi songs", 25).catch(() => []),
       searchSongs("gym workout songs", 25).catch(() => []),
+      searchSongs("Deva Tamil hits", 25).catch(() => []),
+      searchSongs("Anirudh Ravichander hits", 25).catch(() => []),
+      searchSongs("A.R. Rahman Tamil hits", 25).catch(() => []),
+      searchSongs("Yuvan Shankar Raja hits", 25).catch(() => []),
     ]);
 
     const pureGlobal = rawGlobal.filter((s) => !isIndianSong(s));
     const lofiSongs = normalizeSongsToCanonical(rawLofi);
     const workoutSongs = normalizeSongsToCanonical(rawWorkout);
+    const devaSongs = normalizeSongsToCanonical(rawDeva);
+    const anirudhSongs = normalizeSongsToCanonical(rawAnirudh);
+    const rahmanSongs = normalizeSongsToCanonical(rawARRahman);
+    const yuvanSongs = normalizeSongsToCanonical(rawYuvan);
 
     guestNewReleases = [
       {
@@ -261,6 +282,10 @@ export async function buildDashboard(
         songs: pureGlobal.length > 0 ? pureGlobal : english.filter((s) => !isIndianSong(s)),
       },
       { title: "Tamil Chartbusters", songs: tamil },
+      { title: "Best of Deva - Gaana King Hits", songs: devaSongs },
+      { title: "Anirudh Musical Vibes", songs: anirudhSongs },
+      { title: "A.R. Rahman Classics", songs: rahmanSongs },
+      { title: "Yuvan Shankar Raja Hits", songs: yuvanSongs },
       { title: "Hindi Hits & Releases", songs: hindi },
       { title: "Telugu Top Hits", songs: telugu },
       { title: "Punjabi Hits & Bangers", songs: punjabi },

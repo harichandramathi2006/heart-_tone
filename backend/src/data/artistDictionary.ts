@@ -145,6 +145,14 @@ export const ARTIST_DICT: Record<string, string> = {
   shakthisree: "Shakthisree Gopalan",
   "benny dayal": "Benny Dayal",
   benny: "Benny Dayal",
+  deva: "Deva",
+  dava: "Deva",
+  "thenisai thendral": "Deva",
+  "thenisai thendral deva": "Deva",
+  "singer deva": "Deva",
+  "singer dava": "Deva",
+  "deva gaana": "Deva",
+  "gaana deva": "Deva",
   "sai abhyankkar": "Sai Abhyankkar",
 
   // ── Telugu ─────────────────────────────────────────────────────
@@ -295,8 +303,11 @@ export const PHONETIC_CORRECTIONS: Record<string, string> = {
   shreyaghoshal: "shreya ghoshal",
   "kumar shanu": "kumar sanu",
   "diljeet dosanjh": "diljit dosanjh",
-  "a.p. dhillon": "ap dhillon",
   badsha: "badshah",
+  dava: "deva",
+  "dava songs": "deva songs",
+  "singer dava": "singer deva",
+  "dava hits": "deva hits",
   // Song typos
   "shape of u": "shape of you",
   "tumhi ho": "tum hi ho",

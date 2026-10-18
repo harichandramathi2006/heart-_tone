@@ -698,13 +698,85 @@ const QuickPicksList = ({
    GUEST GLOBAL DASHBOARD DATA & HELPERS
    ===================================================================== */
 const TOP_ARTISTS = [
+  { id: "deva-tamil", name: "Deva", role: "Thenisai Thendral / Gaana King", image: "https://c.saavncdn.com/artists/Deva_500x500.jpg" },
+  { id: "596989", name: "Anirudh Ravichander", role: "Rockstar Composer", image: "https://c.saavncdn.com/artists/Anirudh_Ravichander_500x500.jpg" },
+  { id: "456269", name: "A.R. Rahman", role: "Music Maestro", image: "https://c.saavncdn.com/artists/A_R_Rahman_500x500.jpg" },
+  { id: "456323", name: "Yuvan Shankar Raja", role: "Youth Icon / U1", image: "https://c.saavncdn.com/artists/Yuvan_Shankar_Raja_500x500.jpg" },
+  { id: "456863", name: "Ilaiyaraaja", role: "Isaignani", image: "https://c.saavncdn.com/artists/Ilaiyaraaja_500x500.jpg" },
+  { id: "455124", name: "Harris Jayaraj", role: "Melody King", image: "https://c.saavncdn.com/artists/Harris_Jayaraj_500x500.jpg" },
+  { id: "468245", name: "Sid Sriram", role: "Playback Singer", image: "https://c.saavncdn.com/artists/Sid_Sriram_500x500.jpg" },
   { id: "702776", name: "Arijit Singh", role: "Top Artist", image: "https://c.saavncdn.com/artists/Arijit_Singh_002_20230323062147_500x500.jpg" },
   { id: "3799917", name: "Taylor Swift", role: "Top Artist", image: "https://c.saavncdn.com/artists/Taylor_Swift_500x500.jpg" },
   { id: "1433699", name: "The Weeknd", role: "Top Artist", image: "https://c.saavncdn.com/artists/The_Weeknd_500x500.jpg" },
-  { id: "596989", name: "Anirudh Ravichander", role: "Composer", image: "https://c.saavncdn.com/artists/Anirudh_Ravichander_500x500.jpg" },
+  { id: "16568113", name: "Shreya Ghoshal", role: "Playback Singer", image: "https://c.saavncdn.com/artists/Shreya_Ghoshal_500x500.jpg" },
   { id: "17063328", name: "Drake", role: "Top Artist", image: "https://c.saavncdn.com/artists/Drake_500x500.jpg" },
   { id: "929381", name: "Ed Sheeran", role: "Top Artist", image: "https://c.saavncdn.com/artists/Ed_Sheeran_500x500.jpg" },
-  { id: "16568113", name: "Shreya Ghoshal", role: "Playback Singer", image: "https://c.saavncdn.com/artists/Shreya_Ghoshal_500x500.jpg" },
+];
+
+const ARTIST_PLAYLISTS = [
+  {
+    name: "Deva Hits",
+    sub: "Gaana King & 90s Classics",
+    query: "Deva Tamil hits",
+    color: "from-amber-600/30 to-orange-700/20 border-amber-500/30",
+    image: "https://c.saavncdn.com/artists/Deva_500x500.jpg",
+  },
+  {
+    name: "Anirudh Vibes",
+    sub: "Rockstar Anthems",
+    query: "Anirudh Ravichander hits",
+    color: "from-red-600/30 to-rose-700/20 border-red-500/30",
+    image: "https://c.saavncdn.com/artists/Anirudh_Ravichander_500x500.jpg",
+  },
+  {
+    name: "A.R. Rahman Classics",
+    sub: "Musical Genius",
+    query: "A.R. Rahman hits",
+    color: "from-emerald-600/30 to-teal-700/20 border-emerald-500/30",
+    image: "https://c.saavncdn.com/artists/A_R_Rahman_500x500.jpg",
+  },
+  {
+    name: "Yuvan Shankar Raja",
+    sub: "Youth Icon & Vibes",
+    query: "Yuvan Shankar Raja hits",
+    color: "from-purple-600/30 to-indigo-700/20 border-purple-500/30",
+    image: "https://c.saavncdn.com/artists/Yuvan_Shankar_Raja_500x500.jpg",
+  },
+  {
+    name: "Ilaiyaraaja Gold",
+    sub: "Isaignani Legends",
+    query: "Ilaiyaraaja hits",
+    color: "from-yellow-600/30 to-amber-700/20 border-yellow-500/30",
+    image: "https://c.saavncdn.com/artists/Ilaiyaraaja_500x500.jpg",
+  },
+  {
+    name: "Harris Jayaraj",
+    sub: "Timeless Melodies",
+    query: "Harris Jayaraj hits",
+    color: "from-cyan-600/30 to-blue-700/20 border-cyan-500/30",
+    image: "https://c.saavncdn.com/artists/Harris_Jayaraj_500x500.jpg",
+  },
+  {
+    name: "Sid Sriram Soul",
+    sub: "Acoustic & Classical",
+    query: "Sid Sriram hits",
+    color: "from-rose-600/30 to-red-700/20 border-rose-500/30",
+    image: "https://c.saavncdn.com/artists/Sid_Sriram_500x500.jpg",
+  },
+  {
+    name: "Arijit Singh",
+    sub: "Soulful Ballads",
+    query: "Arijit Singh hits",
+    color: "from-blue-600/30 to-indigo-700/20 border-blue-500/30",
+    image: "https://c.saavncdn.com/artists/Arijit_Singh_002_20230323062147_500x500.jpg",
+  },
+  {
+    name: "Taylor Swift",
+    sub: "All Eras Collection",
+    query: "Taylor Swift hits",
+    color: "from-fuchsia-600/30 to-purple-700/20 border-fuchsia-500/30",
+    image: "https://c.saavncdn.com/artists/Taylor_Swift_500x500.jpg",
+  },
 ];
 
 const EDITORIAL_PICKS = [
@@ -1055,7 +1127,47 @@ export const HomePage = () => {
             </div>
           )}
 
-          {/* ── 5. TOP ARTISTS THIS WEEK ── */}
+          {/* ── 5. ARTIST PLAYLISTS & ESSENTIALS ── */}
+          <div className="mb-10">
+            <SectionHeader
+              title="Artist Playlists & Essentials"
+              subtitle="Curated collections from iconic composers and singers"
+            />
+            <div className="flex overflow-x-auto hide-scrollbar gap-3.5 pb-2 -mx-4 px-4">
+              {ARTIST_PLAYLISTS.map((pl) => (
+                <div
+                  key={pl.name}
+                  onClick={() => navigate(`/search?q=${encodeURIComponent(pl.query)}`)}
+                  className={`flex-shrink-0 w-44 p-3.5 rounded-2xl bg-gradient-to-br ${pl.color} border hover:scale-[1.03] transition-all cursor-pointer group flex flex-col justify-between`}
+                >
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-12 h-12 rounded-full overflow-hidden border border-white/20 shadow-md flex-shrink-0 bg-white/10">
+                      <img
+                        src={pl.image}
+                        alt={pl.name}
+                        className="w-full h-full object-cover group-hover:scale-110 transition-transform"
+                        onError={onImgErr}
+                        loading="lazy"
+                      />
+                    </div>
+                    <div className="w-8 h-8 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center ml-auto text-white group-hover:bg-sp-green group-hover:text-black transition-colors shadow-sm">
+                      <Play size={13} className="ml-0.5 fill-current" />
+                    </div>
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-white group-hover:text-sp-green transition-colors truncate">
+                      {pl.name}
+                    </h4>
+                    <p className="text-[11px] text-white/60 truncate mt-0.5">
+                      {pl.sub}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* ── 6. TOP ARTISTS THIS WEEK ── */}
           <div className="mb-10">
             <SectionHeader
               title="Top Artists This Week"
@@ -1066,17 +1178,18 @@ export const HomePage = () => {
                 <div
                   key={artist.name}
                   onClick={() =>
-                    artist.id
+                    artist.id && !artist.id.includes("-")
                       ? navigate(`/artist/${artist.id}`)
                       : navigate(`/search?q=${encodeURIComponent(artist.name)}`)
                   }
                   className="flex-shrink-0 w-32 p-3 rounded-2xl bg-white/[0.03] hover:bg-white/[0.07] border border-transparent hover:border-white/[0.06] transition-all cursor-pointer text-center group"
                 >
-                  <div className="w-24 h-24 mx-auto rounded-full overflow-hidden mb-2.5 shadow-lg group-hover:scale-105 transition-transform border border-white/10">
+                  <div className="w-24 h-24 mx-auto rounded-full overflow-hidden mb-2.5 shadow-lg group-hover:scale-105 transition-transform border border-white/10 bg-white/10">
                     <img
                       src={artist.image}
                       alt={artist.name}
                       className="w-full h-full object-cover"
+                      onError={onImgErr}
                       loading="lazy"
                     />
                   </div>
@@ -1186,6 +1299,46 @@ export const HomePage = () => {
             </div>
           )}
 
+          {/* ── ARTIST PLAYLISTS & ESSENTIALS ── */}
+          <div>
+            <SectionHeader
+              title="Artist Playlists & Essentials"
+              subtitle="Curated collections from iconic composers and singers"
+            />
+            <div className="flex overflow-x-auto hide-scrollbar gap-3.5 pb-2 -mx-4 px-4">
+              {ARTIST_PLAYLISTS.map((pl) => (
+                <div
+                  key={pl.name}
+                  onClick={() => navigate(`/search?q=${encodeURIComponent(pl.query)}`)}
+                  className={`flex-shrink-0 w-44 p-3.5 rounded-2xl bg-gradient-to-br ${pl.color} border hover:scale-[1.03] transition-all cursor-pointer group flex flex-col justify-between`}
+                >
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-12 h-12 rounded-full overflow-hidden border border-white/20 shadow-md flex-shrink-0 bg-white/10">
+                      <img
+                        src={pl.image}
+                        alt={pl.name}
+                        className="w-full h-full object-cover group-hover:scale-110 transition-transform"
+                        onError={onImgErr}
+                        loading="lazy"
+                      />
+                    </div>
+                    <div className="w-8 h-8 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center ml-auto text-white group-hover:bg-sp-green group-hover:text-black transition-colors shadow-sm">
+                      <Play size={13} className="ml-0.5 fill-current" />
+                    </div>
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-white group-hover:text-sp-green transition-colors truncate">
+                      {pl.name}
+                    </h4>
+                    <p className="text-[11px] text-white/60 truncate mt-0.5">
+                      {pl.sub}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
           {/* ── TOP ARTISTS THIS WEEK ── */}
           <div>
             <SectionHeader
@@ -1197,17 +1350,18 @@ export const HomePage = () => {
                 <div
                   key={artist.name}
                   onClick={() =>
-                    artist.id
+                    artist.id && !artist.id.includes("-")
                       ? navigate(`/artist/${artist.id}`)
                       : navigate(`/search?q=${encodeURIComponent(artist.name)}`)
                   }
                   className="flex-shrink-0 w-32 p-3 rounded-2xl bg-white/[0.03] hover:bg-white/[0.07] border border-transparent hover:border-white/[0.06] transition-all cursor-pointer text-center group"
                 >
-                  <div className="w-24 h-24 mx-auto rounded-full overflow-hidden mb-2.5 shadow-lg group-hover:scale-105 transition-transform border border-white/10">
+                  <div className="w-24 h-24 mx-auto rounded-full overflow-hidden mb-2.5 shadow-lg group-hover:scale-105 transition-transform border border-white/10 bg-white/10">
                     <img
                       src={artist.image}
                       alt={artist.name}
                       className="w-full h-full object-cover"
+                      onError={onImgErr}
                       loading="lazy"
                     />
                   </div>
