@@ -50,6 +50,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({
     currentSong,
     isPlaying,
     volume,
+    volumeBoost,
     isMuted,
     repeatMode,
     autoplay,
@@ -83,6 +84,12 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({
   const stallRecoveryAttemptsRef = useRef(0);
   // Separate flag for remote song changes so the song-sync effect doesn't echo them back.
   const isRemoteSongChangeRef = useRef(false);
+
+  // ── Web Audio API 1000% Volume Booster (GainNode + DynamicsCompressor) ──
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const gainNodeRef = useRef<GainNode | null>(null);
+  const compressorRef = useRef<DynamicsCompressorNode | null>(null);
+  const mediaSourceConnectedRef = useRef(false);
 
   // Stable actions for useDuo to call
   const playSongRef = useRef<
@@ -335,10 +342,56 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   }, [currentSong?.id, queue, duo]);
 
+  // ── Web Audio API initialization & Booster Setup ─────────────────
+  const initAudioBooster = useCallback(() => {
+    if (!audioRef.current || mediaSourceConnectedRef.current) return;
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      audioContextRef.current = ctx;
+
+      // Studio-grade Dynamics Compressor: Prevents distortion, harsh clipping & noise at high boost
+      const compressor = ctx.createDynamicsCompressor();
+      compressor.threshold.setValueAtTime(-12, ctx.currentTime); // dB
+      compressor.knee.setValueAtTime(30, ctx.currentTime);
+      compressor.ratio.setValueAtTime(12, ctx.currentTime);
+      compressor.attack.setValueAtTime(0.003, ctx.currentTime);
+      compressor.release.setValueAtTime(0.25, ctx.currentTime);
+      compressorRef.current = compressor;
+
+      // Master Gain Node: allows amplification from 1.0 (100%) to 10.0 (1000%)
+      const gainNode = ctx.createGain();
+      gainNode.gain.setValueAtTime(isMuted ? 0 : volume * volumeBoost, ctx.currentTime);
+      gainNodeRef.current = gainNode;
+
+      // Connect: AudioElement -> Compressor (Anti-Clipping) -> GainNode -> Speakers
+      const source = ctx.createMediaElementSource(audioRef.current);
+      source.connect(compressor);
+      compressor.connect(gainNode);
+      gainNode.connect(ctx.destination);
+
+      mediaSourceConnectedRef.current = true;
+    } catch (e) {
+      console.warn("[Player] Audio booster Web Audio setup error:", e);
+    }
+  }, [volume, volumeBoost, isMuted]);
+
   // ── Volume & Media Controls ──────────────────────────────────────
   useEffect(() => {
-    if (audioRef.current) audioRef.current.volume = isMuted ? 0 : volume;
-  }, [volume, isMuted]);
+    if (audioContextRef.current && audioContextRef.current.state === "suspended") {
+      audioContextRef.current.resume().catch(() => {});
+    }
+
+    if (gainNodeRef.current && audioContextRef.current) {
+      // AudioContext connected: use GainNode for 100% to 1000% amplification
+      const targetGain = isMuted ? 0 : Math.max(0, volume * volumeBoost);
+      gainNodeRef.current.gain.setTargetAtTime(targetGain, audioContextRef.current.currentTime, 0.05);
+    } else if (audioRef.current) {
+      // Fallback before user interaction unlocks AudioContext
+      audioRef.current.volume = isMuted ? 0 : Math.min(1, volume);
+    }
+  }, [volume, volumeBoost, isMuted]);
 
   useEffect(() => {
     registerMediaControls({
@@ -619,6 +672,11 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const handlePlay = () => {
     setIsPlaying(true);
+    // Initialize Web Audio graph upon first playback interaction
+    initAudioBooster();
+    if (audioContextRef.current && audioContextRef.current.state === "suspended") {
+      audioContextRef.current.resume().catch(() => {});
+    }
     if (currentSong) {
       analytics.track("song_play", {
         song_id: currentSong.id,
