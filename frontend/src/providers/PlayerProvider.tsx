@@ -384,12 +384,11 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({
     }
 
     if (gainNodeRef.current && audioContextRef.current) {
-      // AudioContext connected: use GainNode for 100% to 1000% amplification
       const targetGain = isMuted ? 0 : Math.max(0, volume * volumeBoost);
-      gainNodeRef.current.gain.setTargetAtTime(targetGain, audioContextRef.current.currentTime, 0.05);
+      gainNodeRef.current.gain.setValueAtTime(targetGain, audioContextRef.current.currentTime);
+      if (audioRef.current) audioRef.current.volume = isMuted ? 0 : 1.0;
     } else if (audioRef.current) {
-      // Fallback before user interaction unlocks AudioContext
-      audioRef.current.volume = isMuted ? 0 : Math.min(1, volume);
+      audioRef.current.volume = isMuted ? 0 : Math.min(1, Math.max(0, volume));
     }
   }, [volume, volumeBoost, isMuted]);
 

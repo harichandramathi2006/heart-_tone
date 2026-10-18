@@ -7,15 +7,15 @@
 // songs — this is a JioSaavn source-level issue, not fixable by switching wrappers.
 // Override via JIOSAAVN_API env variable if you have a private mirror.
 const DEFAULT_MIRRORS = [
+  "https://jiosavan-api2.vercel.app/api",
   process.env.JIOSAAVN_API,
   process.env.JIOSAAVN_API_PRIMARY,
-  "https://jiosavan-api2.vercel.app/api",
   "https://saavn.sumit.co/api",
   process.env.JIOSAAVN_API_FALLBACK,
 ].filter(Boolean) as string[];
 
 export const JIOSAAVN_MIRRORS = Array.from(new Set(DEFAULT_MIRRORS));
-const JIOSAAVN_BASE = JIOSAAVN_MIRRORS[0] || "https://jiosavan-api2.vercel.app/api";
+const JIOSAAVN_BASE = "https://jiosavan-api2.vercel.app/api";
 const REQUEST_TIMEOUT = 5000; // 5 seconds
 
 // Single-API fetchSafe with seamless mirror fallback
@@ -253,6 +253,7 @@ export async function searchSongsHybrid(
     }
 
     // Enrich direct songs with working downloadUrls & images from wrapper
+    const missingIds: string[] = [];
     for (const d of rawDirect) {
       const id = String(d.id || "");
       const w = wrapperMap.get(id);
@@ -263,7 +264,26 @@ export async function searchSongsHybrid(
         if (w.image) {
           d.image = w.image;
         }
+      } else if (id) {
+        missingIds.push(id);
       }
+    }
+
+    // Fast batch enrichment for top results missing downloadUrl (up to 12 songs)
+    if (missingIds.length > 0) {
+      try {
+        const batchDetails = await getSongsDetailsBatch(missingIds.slice(0, 12));
+        for (const item of batchDetails) {
+          const id = String(item.id || "");
+          if (id && Array.isArray(item.downloadUrl) && item.downloadUrl.length > 0) {
+            const match = rawDirect.find((d: any) => String(d.id || "") === id);
+            if (match) {
+              match.downloadUrl = item.downloadUrl;
+              if (item.image) match.image = item.image;
+            }
+          }
+        }
+      } catch {}
     }
 
     // Merge wrapper results for extra coverage (dedup by ID)
@@ -500,6 +520,10 @@ export function normalizeSongToCanonical(raw: any): Song | null {
   const medUrl = raw.media_url || raw.more_info?.media_url;
   if (!streamUrl && medUrl && typeof medUrl === "string" && medUrl.startsWith("http")) {
     streamUrl = decodeHtmlEntities(medUrl);
+  }
+  const prevUrl = raw.media_preview_url || raw.more_info?.media_preview_url;
+  if (!streamUrl && prevUrl && typeof prevUrl === "string" && prevUrl.startsWith("http")) {
+    streamUrl = decodeHtmlEntities(prevUrl);
   }
 
   // ── Image: highest quality available ─────────────────────────
