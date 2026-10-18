@@ -117,6 +117,9 @@ export function setupRoomHandlers(io: Server, socket: Socket): void {
               currentTime: dbSession.currentTime || 0,
               messages: (dbSession.messages || []).map((m: any) => ({
                 text: m.text,
+                audio: m.audio || undefined,
+                type: m.type || (m.audio ? "voice" : "text"),
+                duration: m.duration || undefined,
                 from: m.from,
                 fromName: m.fromName || "",
                 at: m.at ? new Date(m.at).getTime() : Date.now(),

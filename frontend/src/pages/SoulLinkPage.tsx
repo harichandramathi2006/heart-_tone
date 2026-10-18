@@ -107,7 +107,7 @@ const VoiceMessageBubble = ({
   duration,
   isMe,
 }: {
-  audioSrc: string;
+  audioSrc?: string;
   duration?: number;
   isMe: boolean;
 }) => {
@@ -119,7 +119,7 @@ const VoiceMessageBubble = ({
     const audio = audioRef.current;
     if (!audio) return;
     const handleTime = () => {
-      if (audio.duration) {
+      if (audio.duration && !isNaN(audio.duration)) {
         setProgress((audio.currentTime / audio.duration) * 100);
       }
     };
@@ -127,26 +127,42 @@ const VoiceMessageBubble = ({
       setIsPlaying(false);
       setProgress(0);
     };
+    const handlePause = () => {
+      setIsPlaying(false);
+    };
     audio.addEventListener("timeupdate", handleTime);
     audio.addEventListener("ended", handleEnd);
+    audio.addEventListener("pause", handlePause);
     return () => {
       audio.removeEventListener("timeupdate", handleTime);
       audio.removeEventListener("ended", handleEnd);
+      audio.removeEventListener("pause", handlePause);
     };
-  }, []);
+  }, [audioSrc]);
 
-  const toggle = () => {
+  const toggle = (e: React.MouseEvent) => {
+    e.stopPropagation();
     const audio = audioRef.current;
-    if (!audio) return;
+    if (!audio || !audioSrc) {
+      toast.error("Audio recording unavailable");
+      return;
+    }
     if (isPlaying) {
       audio.pause();
       setIsPlaying(false);
     } else {
-      audio.play().then(() => setIsPlaying(true)).catch(() => {});
+      audio.play()
+        .then(() => setIsPlaying(true))
+        .catch((err) => {
+          console.warn("[VoiceBubble] Play error:", err);
+          setIsPlaying(false);
+          toast.error("Cannot play voice note");
+        });
     }
   };
 
   const formatSec = (s: number) => {
+    if (!s || isNaN(s)) return "0:00";
     const mins = Math.floor(s / 60);
     const secs = Math.floor(s % 60);
     return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
@@ -154,33 +170,38 @@ const VoiceMessageBubble = ({
 
   return (
     <div
-      className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-2xl max-w-[85%] ${
+      onClick={toggle}
+      className={`flex items-center gap-3 px-4 py-3 rounded-2xl max-w-[85%] cursor-pointer select-none transition-all duration-200 active:scale-[0.98] ${
         isMe
-          ? "bg-sp-green text-black rounded-br-none shadow-md shadow-sp-green/10"
-          : "bg-white/[0.08] text-white rounded-bl-none border border-white/[0.05]"
+          ? "bg-sp-green text-black rounded-br-none shadow-md shadow-sp-green/15"
+          : "bg-white/[0.08] text-white rounded-bl-none border border-white/[0.06] hover:bg-white/[0.12]"
       }`}
     >
-      <audio ref={audioRef} src={audioSrc} preload="metadata" />
+      {audioSrc && <audio ref={audioRef} src={audioSrc} preload="auto" />}
       <button
         type="button"
         onClick={toggle}
-        className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition-transform active:scale-95 ${
+        className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 transition-transform active:scale-90 shadow-sm ${
           isMe
             ? "bg-black text-white hover:bg-black/80"
             : "bg-sp-green text-black hover:bg-sp-green/90"
         }`}
       >
-        {isPlaying ? <Pause size={13} fill="currentColor" /> : <Play size={13} fill="currentColor" className="ml-0.5" />}
+        {isPlaying ? (
+          <Pause size={14} fill="currentColor" />
+        ) : (
+          <Play size={14} fill="currentColor" className="ml-0.5" />
+        )}
       </button>
 
-      <div className="flex flex-col gap-1 min-w-[120px] sm:min-w-[160px]">
-        <div className="flex items-center justify-between text-[11px] font-semibold tabular-nums opacity-80">
-          <span className="flex items-center gap-1">
-            <Mic size={10} /> Voice Note
+      <div className="flex flex-col gap-1.5 min-w-[130px] sm:min-w-[170px]">
+        <div className="flex items-center justify-between text-[11px] font-bold tabular-nums">
+          <span className="flex items-center gap-1.5 opacity-90">
+            <Mic size={12} /> Voice Note
           </span>
-          <span>{duration ? formatSec(duration) : "0:00"}</span>
+          <span className="opacity-75">{duration ? formatSec(duration) : "0:00"}</span>
         </div>
-        <div className={`h-1.5 w-full rounded-full overflow-hidden ${isMe ? "bg-black/20" : "bg-white/10"}`}>
+        <div className={`h-2 w-full rounded-full overflow-hidden ${isMe ? "bg-black/25" : "bg-white/15"}`}>
           <div
             className={`h-full transition-all duration-100 rounded-full ${isMe ? "bg-black" : "bg-sp-green"}`}
             style={{ width: `${progress}%` }}
@@ -222,18 +243,33 @@ const ChatInput = ({
 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       audioChunksRef.current = [];
-      const recorder = new MediaRecorder(stream);
+
+      let mimeType = "audio/webm";
+      if (typeof MediaRecorder.isTypeSupported === "function") {
+        if (MediaRecorder.isTypeSupported("audio/webm;codecs=opus")) {
+          mimeType = "audio/webm;codecs=opus";
+        } else if (MediaRecorder.isTypeSupported("audio/webm")) {
+          mimeType = "audio/webm";
+        } else if (MediaRecorder.isTypeSupported("audio/mp4")) {
+          mimeType = "audio/mp4";
+        } else if (MediaRecorder.isTypeSupported("audio/aac")) {
+          mimeType = "audio/aac";
+        }
+      }
+
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
       mediaRecorderRef.current = recorder;
 
       recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) {
+        if (e.data && e.data.size > 0) {
           audioChunksRef.current.push(e.data);
         }
       };
 
       recorder.onstop = () => {
         stream.getTracks().forEach((track) => track.stop());
-        const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+        const selectedMime = recorder.mimeType || mimeType || "audio/webm";
+        const audioBlob = new Blob(audioChunksRef.current, { type: selectedMime });
         const reader = new FileReader();
         reader.readAsDataURL(audioBlob);
         reader.onloadend = () => {
