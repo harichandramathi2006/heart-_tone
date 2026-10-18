@@ -204,8 +204,8 @@ export function setupRoomHandlers(io: Server, socket: Socket): void {
             room,
           });
         }
-        // Send current room state to this socket
-        socket.emit("duo:session-state", { room });
+        // Send current room state to room & socket
+        io.to(roomCode).emit("duo:session-state", { room });
       } else {
         room.guest = { name, socketId: socket.id, connected: true };
         try {
