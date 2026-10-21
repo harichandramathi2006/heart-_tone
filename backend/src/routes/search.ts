@@ -9,6 +9,7 @@ import {
   searchAll,
   searchAlbums,
   searchArtists,
+  searchPlaylists,
   rankArtists,
   fetchArtistSongs,
   fetchAlbumSongs,
@@ -122,7 +123,7 @@ router.get("/", softAuth, async (req: SoftAuthRequest, res: Response): Promise<v
       albumQueries.push(`${targetLang ? targetLang + " " : ""}${detectedEra.era} hits`);
     }
 
-    const [hybridRes, fallbackRes, allRes, artistRes, directAlbumRes] =
+    const [hybridRes, fallbackRes, allRes, artistRes, directAlbumRes, playlistRes] =
       await Promise.allSettled([
         searchSongsHybrid(primaryQuery, 50, knownArtist),
         Promise.allSettled(
@@ -133,6 +134,7 @@ router.get("/", softAuth, async (req: SoftAuthRequest, res: Response): Promise<v
         Promise.allSettled(
           albumQueries.map((aq) => searchAlbums(aq, 35)),
         ),
+        searchPlaylists(q, 8),
       ]);
 
     const rawSongs: any[] = [];
@@ -372,6 +374,42 @@ router.get("/", softAuth, async (req: SoftAuthRequest, res: Response): Promise<v
     const allSongs = ranked.slice(0, 100);
     const songs = allSongs.slice(0, limit);
 
+    const rawPlaylists = playlistRes.status === "fulfilled" && Array.isArray(playlistRes.value)
+      ? playlistRes.value
+      : [];
+
+    const playlists: any[] = [];
+    const isItemOrParty =
+      /\b(item|items|kuthu|dance|party|club|masala)\b/i.test(qLower) ||
+      detectedMood === "item" ||
+      detectedMood === "party";
+
+    if (isItemOrParty) {
+      playlists.push({
+        id: "tamil-item-songs",
+        name: "Tamil Item & Kuthu All-Time Hits",
+        description: "Ultimate high-energy Kollywood item songs, kuthu beats & dance blockbusters.",
+        image: "https://c.saavncdn.com/editorial/charts_Tamil1990s_190250_20240408062124_500x500.jpg",
+        songCount: 21,
+        type: "playlist",
+        url: "/playlist/tamil-item-songs",
+      });
+    }
+
+    for (const p of rawPlaylists) {
+      if (p.id && !playlists.some((x) => x.id === p.id)) {
+        playlists.push({
+          id: p.id,
+          name: decodeHtmlEntities(p.name || p.title || ""),
+          description: decodeHtmlEntities(p.subtitle || p.description || ""),
+          image: p.image || "/placeholder.png",
+          songCount: Number(p.songCount || p.count) || 0,
+          type: "playlist",
+          url: `/playlist/${p.id}`,
+        });
+      }
+    }
+
     const relatedSearches = generateRelatedSearches(q, artists, songs);
 
     const result = {
@@ -379,6 +417,7 @@ router.get("/", softAuth, async (req: SoftAuthRequest, res: Response): Promise<v
       songs: allSongs, // cache full pool
       artists,
       albums,
+      playlists: playlists.slice(0, 10),
       topResult: allSongs[0] ?? null,
       total: allSongs.length,
       parsedIntent: { displayContext: `Results for "${q}"` },

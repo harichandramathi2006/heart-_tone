@@ -10,6 +10,7 @@ export interface SmartSearchResult {
   songs: any[];
   albums: any[];
   artists: any[];
+  playlists?: any[];
   topResult: any | null;
   total: number;
   intent: {

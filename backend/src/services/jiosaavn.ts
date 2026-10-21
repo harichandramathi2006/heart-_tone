@@ -577,6 +577,15 @@ export function normalizeSongsToCanonical(raws: any[]): Song[] {
 // that the wrapper search index never returns.
 export async function fetchSongsByIds(ids: string[]): Promise<Song[]> {
   if (!ids.length) return [];
+  try {
+    const directRes = await fetchDirect(
+      `${JIOSAAVN_DIRECT}?__call=song.getDetails&pids=${encodeURIComponent(ids.join(","))}&_format=json&_marker=0&ctx=web6dot0`,
+      3500
+    );
+    if (directRes && Array.isArray(directRes.songs) && directRes.songs.length > 0) {
+      return normalizeSongsToCanonical(directRes.songs);
+    }
+  } catch {}
   const results = await Promise.allSettled(
     ids.map((id) => fetchSafe(`${JIOSAAVN_BASE}/songs/${id}`) as Promise<any>),
   );

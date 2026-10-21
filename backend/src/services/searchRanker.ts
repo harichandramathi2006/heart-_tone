@@ -44,9 +44,14 @@ export const MOOD_KEYWORDS_MAP: Record<string, string[]> = {
     "romantic", "love", "romance", "crush", "couple", "kadhal", "pyaar", "ishq",
     "mohabbat", "prema", "valantine", "sweetheart", "melody love"
   ],
+  item: [
+    "item", "item song", "item songs", "items", "item dance", "item padal",
+    "kuthu", "kuthu songs", "kuthu song", "item dance songs", "masala song",
+    "masala songs", "glamour song", "glamour songs", "dance number"
+  ],
   party: [
     "party", "dance", "club", "dj", "banger", "koothu", "kuthu", "gaana",
-    "celebration", "dhol", "nach", "fast beat", "bass boosted"
+    "celebration", "dhol", "nach", "fast beat", "bass boosted", "item", "items", "item song", "item songs"
   ],
   chill: [
     "chill", "relax", "peaceful", "calm", "lofi", "lo-fi", "sleep", "soothing",
@@ -548,7 +553,46 @@ export function getKnownArtist(query: string): string | null {
 // Fetched directly by ID on every matching search, bypassing search index.
 // To add more: search on local dev, copy the id from direct jiosaavn.com results.
 // ════════════════════════════════════════════════════════════════
+export const TAMIL_ITEM_SONG_IDS = [
+  "NmkwfzYX", // Oo Solriya Oo Oo Solriya (Pushpa)
+  "nHs_0eEA", // Kaavaalaa (Jailer)
+  "aUB2VgLm", // Appadipodu (Ghilli)
+  "1EMhybjY", // Kalasala Kalasala (Osthe)
+  "AgeRwxTb", // Arabic Kuthu - Halamithi Habibo (Beast)
+  "ahQg3u9E", // Naa Ready (Leo)
+  "ymKschUl", // Aaluma Doluma (Vedalam)
+  "IJ3C0q7f", // Vaathi Coming (Master)
+  "mXhwLwHw", // Ringa Ringa (7aum Arivu)
+  "oWRuPdt_", // Kattipudi Kattipudida (Kushi)
+  "mXQLtmGw", // Pottu Thakku (Kuthu)
+  "H_JGn6eH", // Chikku Bukku Rayiley (Gentleman)
+  "636QEUfW", // Machi Open the Bottle (Mankatha)
+  "69gtUbUv", // Danga Maari Oodhari (Anegan)
+  "I6jncR_O", // Manasilaayo (Vettaiyan)
+  "y2UZ6cZZ", // Seena Thana (Vasool Raja)
+  "_cFy-xJa", // Saroja Saman Nikolo (Chennai 600028)
+  "NG6XaUYU", // Matta (GOAT)
+  "QZ0saCaM", // Pathala Pathala (Vikram)
+  "gg6ID5MD", // Chellamma (Doctor)
+  "BNTdBvwL", // Ta Takkara (Kalki)
+];
+
 export const KNOWN_SONG_IDS: Record<string, string[]> = {
+  "item songs": TAMIL_ITEM_SONG_IDS,
+  "item song": TAMIL_ITEM_SONG_IDS,
+  "items songs": TAMIL_ITEM_SONG_IDS,
+  "items song": TAMIL_ITEM_SONG_IDS,
+  "items tamil songs": TAMIL_ITEM_SONG_IDS,
+  "item tamil songs": TAMIL_ITEM_SONG_IDS,
+  "tamil item songs": TAMIL_ITEM_SONG_IDS,
+  "tamil item song": TAMIL_ITEM_SONG_IDS,
+  "tamil items songs": TAMIL_ITEM_SONG_IDS,
+  "tamil items song": TAMIL_ITEM_SONG_IDS,
+  "tamil item": TAMIL_ITEM_SONG_IDS,
+  "tamil items": TAMIL_ITEM_SONG_IDS,
+  "item dance songs": TAMIL_ITEM_SONG_IDS,
+  "kuthu songs": TAMIL_ITEM_SONG_IDS,
+  "tamil kuthu songs": TAMIL_ITEM_SONG_IDS,
   "shape of you": ["icJam_5l", "wwSCc15h"],
   "azhage azhage": ["k7yD9gQ5", "Bszutabj", "O1aDQiCm"],
   "azhage": ["k7yD9gQ5", "Bszutabj", "O1aDQiCm"],
@@ -653,6 +697,25 @@ export function buildSearchQueries(
     : (userLanguages && userLanguages.length > 0
         ? userLanguages.slice(0, 3)
         : ["tamil", "hindi", "telugu"]);
+
+  // ── ITEM SONGS / KUTHU DISCOVERY ──────────────────────────────
+  const isItemQuery = /\b(items?|item\s*songs?|kuthu\s*songs?|masala\s*songs?)\b/i.test(qLower);
+  if (isItemQuery) {
+    for (const l of effectiveLangs) {
+      queries.push(`${l} item songs`);
+      queries.push(`${l} kuthu songs`);
+      queries.push(`${l} dance hits`);
+      queries.push(`${l} fast beat songs`);
+    }
+    queries.push("oo solriya");
+    queries.push("kaavaalaa");
+    queries.push("appadi podu");
+    queries.push("kalasala kalasala");
+    queries.push("arabic kuthu");
+    queries.push("naa ready");
+    queries.push("aaluma doluma");
+    queries.push("vaathi coming");
+  }
 
   // ── INDIE / TAMIL ALBUM SONGS DISCOVERY ───────────────────────
   const isIndieAlbumQuery = /\b(album\s*songs?|indie\s*songs?|private\s*songs?)\b/i.test(qLower);

@@ -2,20 +2,33 @@ import { Router, Response } from "express";
 import { Playlist } from "../models/Playlist.js";
 import { authMiddleware, AuthRequest } from "../middleware/auth.js";
 import { softAuth, SoftAuthRequest } from "../middleware/softAuth.js";
+import { TAMIL_ITEM_SONG_IDS } from "../services/searchRanker.js";
+import { fetchSongsByIds } from "../services/jiosaavn.js";
 
 const router = Router();
 
 // GET /api/playlists — All user playlists (without songs for speed)
 router.get("/", softAuth, async (req: SoftAuthRequest, res: Response): Promise<void> => {
   try {
+    const featuredPlaylist = {
+      _id: "tamil-item-songs",
+      name: "Tamil Item & Kuthu All-Time Hits",
+      description: "The ultimate collection of iconic Kollywood item numbers, kuthu beats & dance bangers.",
+      coverImage: "https://c.saavncdn.com/editorial/charts_Tamil1990s_190250_20240408062124_500x500.jpg",
+      isPublic: true,
+      songCount: TAMIL_ITEM_SONG_IDS.length,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
     if (!req.userId) {
-      res.json({ playlists: [] });
+      res.json({ playlists: [featuredPlaylist] });
       return;
     }
     const playlists = await Playlist.find({ userId: req.userId })
       .select("-songs")
       .sort({ updatedAt: -1 });
-    res.json({ playlists });
+    res.json({ playlists: [featuredPlaylist, ...playlists] });
   } catch (err) {
     console.error("[Playlist] List error:", err);
     res.status(500).json({ error: "Failed to fetch playlists" });
@@ -53,7 +66,28 @@ router.post("/", authMiddleware, async (req: AuthRequest, res: Response): Promis
 // GET /api/playlists/:id — Single playlist with all songs
 router.get("/:id", softAuth, async (req: SoftAuthRequest, res: Response): Promise<void> => {
   try {
-    const playlist = await Playlist.findById(req.params.id);
+    const id = req.params.id;
+    if (id === "tamil-item-songs" || id === "tamil-item-hits" || id === "item-songs") {
+      const songs = await fetchSongsByIds(TAMIL_ITEM_SONG_IDS);
+      res.json({
+        playlist: {
+          _id: "tamil-item-songs",
+          name: "Tamil Item & Kuthu All-Time Hits",
+          description: "The ultimate collection of iconic Kollywood item numbers, kuthu beats & dance bangers.",
+          coverImage: "https://c.saavncdn.com/editorial/charts_Tamil1990s_190250_20240408062124_500x500.jpg",
+          userId: "hearttone-official",
+          isAIGenerated: false,
+          isPublic: true,
+          songs: songs.map((s, idx) => ({
+            ...s,
+            addedAt: new Date(Date.now() - idx * 3600000).toISOString(),
+          })),
+        },
+      });
+      return;
+    }
+
+    const playlist = await Playlist.findById(id);
     if (!playlist) {
       res.status(404).json({ error: "Playlist not found" });
       return;

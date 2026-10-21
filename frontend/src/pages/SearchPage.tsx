@@ -19,6 +19,7 @@ import {
   Disc3,
   User,
   Music,
+  ListMusic,
 } from "lucide-react";
 import {
   useSearch,
@@ -35,7 +36,7 @@ import { useAuth } from "../auth/AuthContext";
 import { useApp } from "../context/AppContext";
 import { analytics } from "../services/analytics";
 
-type TabType = "all" | "songs" | "albums" | "artists";
+type TabType = "all" | "songs" | "albums" | "artists" | "playlists";
 
 const POPULAR_BY_LANG: Record<string, string[]> = {
   tamil: [
@@ -297,6 +298,52 @@ function ArtistCard({
   );
 }
 
+function PlaylistCard({
+  playlist,
+  onClick,
+}: {
+  playlist: any;
+  onClick: (id: string) => void;
+}) {
+  const img = bestImg(playlist.image) || playlist.coverImage || FALLBACK_IMG;
+
+  return (
+    <div
+      onClick={() => {
+        analytics.track("search_result_click", { item_id: playlist.id || playlist._id, item_type: "playlist", title: playlist.name || playlist.title });
+        onClick(playlist.id || playlist._id);
+      }}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => e.key === "Enter" && onClick(playlist.id || playlist._id)}
+      className="group relative bg-white/[0.03] hover:bg-white/[0.08] p-3 rounded-2xl transition-all duration-200 cursor-pointer border border-white/5 hover:border-white/10 hover:scale-[1.02]"
+    >
+      <div className="relative aspect-square w-full rounded-xl overflow-hidden mb-3 bg-neutral-900 shadow-md">
+        <img
+          src={img}
+          alt={playlist.name || playlist.title}
+          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+          onError={onImgErr}
+        />
+        <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-end p-2.5">
+          <div className="w-10 h-10 rounded-full bg-sp-green text-black flex items-center justify-center shadow-lg transform scale-90 group-hover:scale-100 transition-transform">
+            <Play size={18} className="fill-black ml-0.5" />
+          </div>
+        </div>
+      </div>
+      <h3 className="text-sm font-bold text-white truncate max-w-full group-hover:text-sp-green transition-colors">
+        {playlist.name || playlist.title}
+      </h3>
+      <p className="text-xs text-white/50 truncate mt-1">
+        {playlist.description || (playlist.songCount ? `${playlist.songCount} songs` : "Playlist")}
+      </p>
+      <span className="mt-2 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+        Playlist
+      </span>
+    </div>
+  );
+}
+
 const AVAILABLE_LANGUAGES = [
   { id: "", label: "All Languages" },
   { id: "tamil", label: "Tamil" },
@@ -309,6 +356,7 @@ const AVAILABLE_LANGUAGES = [
 ];
 
 const MOOD_COLLECTIONS = [
+  { id: "item", label: "💃 Tamil Item & Kuthu Hits", query: "tamil item songs", color: "from-fuchsia-600/25 to-pink-800/35 border-fuchsia-500/30" },
   { id: "sad", label: "😢 Sad & Melancholy", query: "sad songs", color: "from-blue-600/20 to-slate-800/30 border-blue-500/20" },
   { id: "romantic", label: "❤️ Romantic Love", query: "romantic love songs", color: "from-rose-600/20 to-pink-800/30 border-rose-500/20" },
   { id: "party", label: "🎉 Party & Dance", query: "party dance hits", color: "from-amber-600/20 to-orange-800/30 border-amber-500/20" },
@@ -495,11 +543,13 @@ export function SearchPage() {
   const songs = result?.songs || [];
   const albums = result?.albums || [];
   const artists = result?.artists || [];
+  const playlists = result?.playlists || [];
 
   const hasSongs = songs.length > 0;
   const hasAlbums = albums.length > 0;
   const hasArtists = artists.length > 0;
-  const hasAnyResults = hasSongs || hasAlbums || hasArtists;
+  const hasPlaylists = playlists.length > 0;
+  const hasAnyResults = hasSongs || hasAlbums || hasArtists || hasPlaylists;
 
   return (
     <div
@@ -621,7 +671,7 @@ export function SearchPage() {
         <div className="space-y-2.5 animate-fadeIn">
           {/* Content Type Tabs */}
           <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
-            {(["all", "songs", "albums", "artists"] as TabType[]).map((tab) => {
+            {(["all", "songs", "albums", "artists", "playlists"] as TabType[]).map((tab) => {
               const isActive = activeTab === tab;
               return (
                 <button
@@ -907,6 +957,32 @@ export function SearchPage() {
                   </div>
                 </section>
               )}
+
+              {/* Section 4: Playlists */}
+              {hasPlaylists && (
+                <section className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-lg font-extrabold text-white flex items-center gap-2">
+                      <ListMusic size={18} className="text-emerald-400" /> Playlists
+                    </h2>
+                    <button
+                      onClick={() => setActiveTab("playlists")}
+                      className="text-xs font-bold text-sp-green hover:underline flex items-center gap-1"
+                    >
+                      Show all <ChevronRight size={14} />
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                    {playlists.slice(0, 5).map((playlist: any) => (
+                      <PlaylistCard
+                        key={playlist.id || playlist._id}
+                        playlist={playlist}
+                        onClick={(id) => navigate(`/playlist/${id}`)}
+                      />
+                    ))}
+                  </div>
+                </section>
+              )}
             </div>
           )}
 
@@ -992,6 +1068,30 @@ export function SearchPage() {
               ) : (
                 <p className="text-xs text-white/50 py-8 text-center">
                   No artist matches found.
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* ── PLAYLISTS TAB ─────────────────────────────────────────── */}
+          {activeTab === "playlists" && (
+            <div className="space-y-4">
+              <h2 className="text-lg font-extrabold text-white">
+                All Playlist Results
+              </h2>
+              {hasPlaylists ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                  {playlists.map((playlist: any) => (
+                    <PlaylistCard
+                      key={playlist.id || playlist._id}
+                      playlist={playlist}
+                      onClick={(id) => navigate(`/playlist/${id}`)}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-white/50 py-8 text-center">
+                  No playlist matches found.
                 </p>
               )}
             </div>
