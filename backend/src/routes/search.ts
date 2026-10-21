@@ -361,6 +361,7 @@ router.get("/", softAuth, async (req: SoftAuthRequest, res: Response): Promise<v
 
     const normalized = normalizeSongsToCanonical(rawSongs);
     const deduped = dedupSongs(normalized as RankedSong[]) as Song[];
+    const pinnedSet = new Set(pinnedIds);
     const ranked = rankSongs(
       deduped as RankedSong[],
       q,
@@ -369,6 +370,7 @@ router.get("/", softAuth, async (req: SoftAuthRequest, res: Response): Promise<v
       userContext,
       detectedMood,
       detectedEra,
+      pinnedSet,
     ) as Song[];
     // Cache the full ranked pool (up to 100) so any future request can get its own limit
     const allSongs = ranked.slice(0, 100);

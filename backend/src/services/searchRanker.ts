@@ -114,16 +114,18 @@ export function rankSearchResults(
   userContext?: UserPersonalizationContext,
   detectedMood?: string | null,
   detectedEra?: DetectedEra | null,
+  pinnedIds?: Set<string>,
 ): RankedSong[] {
   if (!songs || songs.length === 0) return [];
 
   const q = query.trim().toLowerCase();
   const eraInfo = detectedEra !== undefined ? detectedEra : detectEra(q);
+  const effectivePinned = pinnedIds || new Set(getKnownSongIds(q));
 
   // Score every song
   const scored = songs.map((song) => ({
     ...song,
-    _score: computeScore(song, q, preferredLang, knownArtist, userContext, detectedMood, eraInfo),
+    _score: computeScore(song, q, preferredLang, knownArtist, userContext, detectedMood, eraInfo, effectivePinned),
   }));
 
   // Sort descending by score
@@ -146,8 +148,14 @@ function computeScore(
   userContext?: UserPersonalizationContext,
   detectedMood?: string | null,
   detectedEra?: DetectedEra | null,
+  pinnedIds?: Set<string>,
 ): number {
   let score = 0;
+
+  // ── 0.5. PINNED / VERIFIED QUERY HIT BOOST (+450 pts) ────────
+  if (pinnedIds && pinnedIds.has(song.id)) {
+    score += 450;
+  }
 
   const title = clean(song.name);
   const artist = clean(song.primaryArtists);
@@ -251,7 +259,7 @@ function computeScore(
   if (detectedMood) {
     const moodWords = MOOD_KEYWORDS_MAP[detectedMood] || [];
     const tLower = title.toLowerCase();
-    const aLower = (song.album || "").toLowerCase();
+    const aLower = (typeof song.album === "object" ? (song.album as any)?.name || "" : song.album || "").toLowerCase();
     const matchesMoodText = moodWords.some((mw) => tLower.includes(mw) || aLower.includes(mw));
     if (matchesMoodText) {
       score += 60;
@@ -606,7 +614,12 @@ export const KNOWN_SONG_IDS: Record<string, string[]> = {
 };
 
 export function getKnownSongIds(query: string): string[] {
-  return KNOWN_SONG_IDS[query.trim().toLowerCase()] ?? [];
+  const qClean = query.trim().toLowerCase();
+  if (KNOWN_SONG_IDS[qClean]) return KNOWN_SONG_IDS[qClean];
+  if (/\b(items?|item\s*songs?|kuthu\s*songs?|masala\s*songs?)\b/i.test(qClean)) {
+    return TAMIL_ITEM_SONG_IDS;
+  }
+  return [];
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -703,18 +716,21 @@ export function buildSearchQueries(
   if (isItemQuery) {
     for (const l of effectiveLangs) {
       queries.push(`${l} item songs`);
+      queries.push(`${l} item hits`);
       queries.push(`${l} kuthu songs`);
-      queries.push(`${l} dance hits`);
-      queries.push(`${l} fast beat songs`);
     }
     queries.push("oo solriya");
     queries.push("kaavaalaa");
-    queries.push("appadi podu");
+    queries.push("appadipodu");
     queries.push("kalasala kalasala");
+    queries.push("kattipudi kattipudi da");
+    queries.push("pottu thakku");
     queries.push("arabic kuthu");
     queries.push("naa ready");
     queries.push("aaluma doluma");
     queries.push("vaathi coming");
+    queries.push("seena thana");
+    queries.push("machi open the bottle");
   }
 
   // ── INDIE / TAMIL ALBUM SONGS DISCOVERY ───────────────────────
@@ -827,8 +843,9 @@ export function rankSongs<T extends RankedSong>(
   userContext?: UserPersonalizationContext,
   detectedMood?: string | null,
   detectedEra?: DetectedEra | null,
+  pinnedIds?: Set<string>,
 ): T[] {
-  return rankSearchResults(songs, query, preferLang, knownArtist, userContext, detectedMood, detectedEra) as T[];
+  return rankSearchResults(songs, query, preferLang, knownArtist, userContext, detectedMood, detectedEra, pinnedIds) as T[];
 }
 
 // Deduplicate wrapper (alias with cleaner name)
