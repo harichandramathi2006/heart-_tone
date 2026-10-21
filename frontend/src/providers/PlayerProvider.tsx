@@ -505,7 +505,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({
           }
         }
       } catch {}
-    }, 6000);
+    }, 2500);
   };
 
   const handleStalled = () => {
@@ -605,6 +605,11 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({
     const audio = audioRef.current;
     if (!audio) return;
     if (srcJustChangedRef.current) return;
+    const shouldBePlaying = usePlayerStore.getState().isPlaying;
+    if (shouldBePlaying && !audio.ended && !audio.seeking) {
+      setIsBuffering(true);
+      return;
+    }
     if (!audio.seeking && !audio.ended) {
       setIsPlaying(false);
       if (currentSong) {
@@ -690,6 +695,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({
         className="hidden"
         preload="auto"
         onCanPlay={handleCanPlay}
+        onCanPlayThrough={handleCanPlay}
         onWaiting={handleWaiting}
         onStalled={handleStalled}
         onError={handleError}

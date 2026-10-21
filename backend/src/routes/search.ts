@@ -40,6 +40,10 @@ const router = Router();
 router.get("/", softAuth, async (req: SoftAuthRequest, res: Response): Promise<void> => {
   const q = String(req.query.q || "").trim();
   const lang = String(req.query.lang || "").toLowerCase();
+  const clientUserLangs = String(req.query.userLangs || "")
+    .split(",")
+    .map((l) => l.trim().toLowerCase())
+    .filter(Boolean);
   const limit = Math.min(Number(req.query.limit || 60), 100);
 
   if (!q) {
@@ -48,7 +52,37 @@ router.get("/", softAuth, async (req: SoftAuthRequest, res: Response): Promise<v
   }
 
   const userId = req.userId;
-  const cacheKey = `search:v8:${q.toLowerCase()}:${lang}:${userId || "guest"}`;
+
+  // Retrieve user context and language preferences early so queries can be tailored
+  let userContext: any = undefined;
+  let preferredLangsList: string[] = lang ? [lang] : clientUserLangs;
+
+  if (userId) {
+    try {
+      const [tasteProfile, userDoc] = await Promise.all([
+        getTasteProfile(userId),
+        User.findById(userId).select("likedSongs preferences").lean(),
+      ]);
+      const dbLangs = [
+        ...(tasteProfile?.languages || []).map((l: any) => l.language.toLowerCase()),
+        ...(userDoc?.preferences?.languages || []).map((l: string) => l.toLowerCase()),
+      ];
+      preferredLangsList = Array.from(new Set([...preferredLangsList, ...dbLangs]));
+      userContext = {
+        favoriteArtists: new Set((tasteProfile?.artists || []).map((a: any) => a.artistName.toLowerCase())),
+        preferredLanguages: new Set(preferredLangsList),
+        likedSongIds: new Set((userDoc?.likedSongs || []).map((s: any) => s.songId).filter(Boolean)),
+      };
+    } catch {}
+  }
+
+  if (!userContext && preferredLangsList.length > 0) {
+    userContext = {
+      preferredLanguages: new Set(preferredLangsList),
+    };
+  }
+
+  const cacheKey = `search:v9:${q.toLowerCase()}:${lang}:${preferredLangsList.join("-")}:${userId || "guest"}`;
   try {
     const hit = await redisGet(cacheKey);
     if (hit) {
@@ -64,30 +98,27 @@ router.get("/", softAuth, async (req: SoftAuthRequest, res: Response): Promise<v
     /* miss */
   }
 
-  const { queries, knownArtist } = buildSearchQueries(q);
+  const { queries, knownArtist, detectedMood, targetLang } = buildSearchQueries(
+    q,
+    preferredLangsList,
+    lang || undefined,
+  );
   const [primaryQuery, ...fallbackQueries] = queries;
 
   markUserQueryStart();
   try {
     // Phase 0: Inject pinned songs for known queries ───────────────
-    // These are real JioSaavn IDs that wrapper search never surfaces
-    // (e.g. Ed Sheeran's "Shape of You" is buried by covers).
-    // Fetched directly by ID — always in the pool before ranking.
     const pinnedIds = getKnownSongIds(q);
     const pinnedSongs = pinnedIds.length
       ? await fetchSongsByIds(pinnedIds)
       : [];
-    // Phase 1: all in parallel ─────────────────────────────────────
-    // hybridRes     → direct jiosaavn.com (popularity-ranked)
-    // fallbackRes   → wrapper /search/songs (covers, regional)
-    // allRes        → wrapper /search (artists + albums + top query songs)
-    // artistRes     → wrapper /search/artists (accurate artist IDs)
-    // directAlbumRes→ wrapper /search/albums (50+ discography albums)
+
+    // Phase 1: parallel deep recall across hybrid + regional + albums + artists
     const [hybridRes, fallbackRes, allRes, artistRes, directAlbumRes] =
       await Promise.allSettled([
         searchSongsHybrid(primaryQuery, 50, knownArtist),
         Promise.allSettled(
-          fallbackQueries.slice(0, 2).map((fq) => searchSongs(fq, 30)),
+          fallbackQueries.slice(0, 4).map((fq) => searchSongs(fq, 35)),
         ),
         searchAll(q),
         searchArtists(q, 8),
@@ -228,21 +259,40 @@ router.get("/", softAuth, async (req: SoftAuthRequest, res: Response): Promise<v
     const artists = rankedArtistsList.slice(0, 8);
     const albums = Array.from(albumMap.values()).slice(0, 50);
 
-    let userContext: any = undefined;
-    if (userId) {
+    // Phase 1.5: Deep artist / album tracks ingestion ("without miss a single song")
+    // If the top artist or album matches the user query, fetch their entire top catalog
+    const qLower = q.toLowerCase();
+    const topArtist = artists[0];
+    const topArtistNameLower = (topArtist?.name || "").toLowerCase();
+    const isArtistMatch =
+      topArtist &&
+      topArtist.id &&
+      (topArtistNameLower === qLower ||
+        topArtistNameLower.includes(qLower) ||
+        qLower.includes(topArtistNameLower) ||
+        Boolean(knownArtist));
+
+    const topAlbum = albums[0];
+    const topAlbumNameLower = (topAlbum?.name || "").toLowerCase();
+    const isAlbumMatch =
+      topAlbum &&
+      topAlbum.id &&
+      (topAlbumNameLower === qLower ||
+        topAlbumNameLower.includes(qLower) ||
+        qLower.includes(topAlbumNameLower));
+
+    if (isArtistMatch || isAlbumMatch) {
       try {
-        const [tasteProfile, userDoc] = await Promise.all([
-          getTasteProfile(userId),
-          User.findById(userId).select("likedSongs preferences").lean(),
+        const [artistExtra, albumExtra] = await Promise.allSettled([
+          isArtistMatch ? fetchArtistSongs(topArtist.id, 1, 3) : Promise.resolve([]),
+          isAlbumMatch ? fetchAlbumSongs(topAlbum.id) : Promise.resolve([]),
         ]);
-        userContext = {
-          favoriteArtists: new Set((tasteProfile?.artists || []).map((a: any) => a.artistName.toLowerCase())),
-          preferredLanguages: new Set([
-            ...(tasteProfile?.languages || []).map((l: any) => l.language.toLowerCase()),
-            ...(userDoc?.preferences?.languages || []).map((l: string) => l.toLowerCase()),
-          ]),
-          likedSongIds: new Set((userDoc?.likedSongs || []).map((s: any) => s.songId).filter(Boolean)),
-        };
+        if (artistExtra.status === "fulfilled" && Array.isArray(artistExtra.value)) {
+          addSongs(artistExtra.value);
+        }
+        if (albumExtra.status === "fulfilled" && Array.isArray(albumExtra.value)) {
+          addSongs(albumExtra.value);
+        }
       } catch {}
     }
 
@@ -251,9 +301,10 @@ router.get("/", softAuth, async (req: SoftAuthRequest, res: Response): Promise<v
     const ranked = rankSongs(
       deduped as RankedSong[],
       q,
-      lang || undefined,
+      targetLang || lang || undefined,
       knownArtist ?? undefined,
       userContext,
+      detectedMood,
     ) as Song[];
     // Cache the full ranked pool (up to 100) so any future request can get its own limit
     const allSongs = ranked.slice(0, 100);

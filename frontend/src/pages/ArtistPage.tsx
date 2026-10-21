@@ -33,7 +33,7 @@ import * as backendApi from "../api/backend";
 
 const ARTIST_ECOSYSTEMS: Record<string, string[]> = {
   tamil: [
-    "Anirudh Ravichander", "A.R. Rahman", "Sid Sriram", "Yuvan Shankar Raja",
+    "Deva", "Anirudh Ravichander", "A.R. Rahman", "Sid Sriram", "Yuvan Shankar Raja",
     "Harris Jayaraj", "G.V. Prakash", "Hiphop Tamizha", "Santhosh Narayanan",
     "Ilaiyaraaja", "Vijay Antony", "D. Imman", "Sai Abhyankkar"
   ],

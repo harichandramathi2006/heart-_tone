@@ -1,11 +1,16 @@
 import { SongDownloadUrl } from "../types/song";
 
 /**
- * Decodes HTML entities in JioSaavn CDN URLs.
- * The API returns &amp; instead of & which causes silent audio failures.
+ * Decodes HTML entities in JioSaavn CDN URLs and forces secure HTTPS.
+ * The API returns &amp; instead of & which causes silent audio failures,
+ * and http:// URLs cause mixed-content or redirect stalls on mobile.
  */
 function decodeUrl(url: string): string {
-  return url.replace(/&amp;/g, "&").replace(/&amp;/g, "&").trim();
+  let cleaned = url.replace(/&amp;/g, "&").trim();
+  if (cleaned.startsWith("http://")) {
+    cleaned = cleaned.replace(/^http:\/\//i, "https://");
+  }
+  return cleaned;
 }
 
 export function getBestAudioUrl(urls?: SongDownloadUrl[]): string | null {

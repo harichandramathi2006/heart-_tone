@@ -32,6 +32,73 @@ export interface UserPersonalizationContext {
   likedSongIds?: Set<string>;
 }
 
+// ── MOOD DICTIONARY & DETECTORS ────────────────────────────────
+export const MOOD_KEYWORDS_MAP: Record<string, string[]> = {
+  sad: [
+    "sad", "breakup", "heartbreak", "emotional", "crying", "cry", "pain", "alone",
+    "sogam", "soga padal", "dard", "dukhi", "gum", "melancholy", "tears", "lonely",
+    "broken heart", "feeling low", "depression", "feeling sad"
+  ],
+  romantic: [
+    "romantic", "love", "romance", "crush", "couple", "kadhal", "pyaar", "ishq",
+    "mohabbat", "prema", "valantine", "sweetheart", "melody love"
+  ],
+  party: [
+    "party", "dance", "club", "dj", "banger", "koothu", "kuthu", "gaana",
+    "celebration", "dhol", "nach", "fast beat", "bass boosted"
+  ],
+  chill: [
+    "chill", "relax", "peaceful", "calm", "lofi", "lo-fi", "sleep", "soothing",
+    "slowed", "acoustic", "meditation", "rest"
+  ],
+  workout: [
+    "workout", "gym", "motivation", "motivational", "energy", "fitness", "running",
+    "pump", "beast mode", "power"
+  ],
+  happy: [
+    "happy", "joy", "feel good", "positive", "cheerful", "upbeat", "smile"
+  ],
+  devotional: [
+    "devotional", "bhakti", "prayer", "god", "spiritual", "bhajan", "aarti",
+    "mantra", "pooja", "amman", "murugan", "shiva", "krishna"
+  ],
+  melody: [
+    "melody", "melodies", "evergreen", "retro", "90s", "80s", "golden hits", "classics"
+  ],
+  folk: [
+    "folk", "mass", "local", "village", "thara local", "street", "marana mass"
+  ],
+};
+
+export const KNOWN_LANGUAGES = [
+  "tamil", "hindi", "telugu", "punjabi", "malayalam",
+  "kannada", "english", "bengali", "marathi", "bhojpuri", "gujarati"
+];
+
+export function detectMood(query: string): string | null {
+  const lower = query.toLowerCase();
+  for (const [mood, keywords] of Object.entries(MOOD_KEYWORDS_MAP)) {
+    for (const kw of keywords) {
+      const reg = new RegExp(`(^|\\s)${kw.replace(/[-\/\\^$*+?.()|[\]{}]/g, "\\$&")}($|\\s)`, "i");
+      if (reg.test(lower)) {
+        return mood;
+      }
+    }
+  }
+  return null;
+}
+
+export function detectLanguageInQuery(query: string): string | null {
+  const lower = query.toLowerCase();
+  for (const lang of KNOWN_LANGUAGES) {
+    const reg = new RegExp(`(^|\\s)${lang}($|\\s)`, "i");
+    if (reg.test(lower)) {
+      return lang;
+    }
+  }
+  return null;
+}
+
 // ── THE MAIN RANKING FUNCTION ──────────────────────────────────
 export function rankSearchResults(
   songs: RankedSong[],
@@ -39,6 +106,7 @@ export function rankSearchResults(
   preferredLang?: string,
   knownArtist?: string | null,
   userContext?: UserPersonalizationContext,
+  detectedMood?: string | null,
 ): RankedSong[] {
   if (!songs || songs.length === 0) return [];
 
@@ -47,7 +115,7 @@ export function rankSearchResults(
   // Score every song
   const scored = songs.map((song) => ({
     ...song,
-    _score: computeScore(song, q, preferredLang, knownArtist, userContext),
+    _score: computeScore(song, q, preferredLang, knownArtist, userContext, detectedMood),
   }));
 
   // Sort descending by score
@@ -68,6 +136,7 @@ function computeScore(
   preferredLang?: string,
   knownArtist?: string | null,
   userContext?: UserPersonalizationContext,
+  detectedMood?: string | null,
 ): number {
   let score = 0;
 
@@ -108,8 +177,8 @@ function computeScore(
   // ── 6. ORIGINAL INDICATOR BONUS (+10 to +20 pts) ─────────────
   score += originalIndicatorBonus(title);
 
-  // ── 7. LANGUAGE PREFERENCE (0–15 pts) ────────────────────────
-  score += languageScore(lang, preferredLang);
+  // ── 7. LANGUAGE PREFERENCE & PROFILE FORCING (+150 / −160 pts)
+  score += languageScore(lang, preferredLang, userContext?.preferredLanguages, detectedMood);
 
   // ── 8. STREAM URL PRESENCE (0 or −40 pts) ────────────────────
   if (!song.streamUrl) score -= 40;
@@ -135,6 +204,21 @@ function computeScore(
     const yr = parseInt(song.year, 10);
     if (yr >= 2024) score += 35;
     else if (yr >= 2020) score += 15;
+  }
+
+  // ── 10.5. MOOD RELEVANCE BOOST (+60 pts) ─────────────────────
+  if (detectedMood) {
+    const moodWords = MOOD_KEYWORDS_MAP[detectedMood] || [];
+    const tLower = title.toLowerCase();
+    const aLower = (song.album || "").toLowerCase();
+    const matchesMoodText = moodWords.some((mw) => tLower.includes(mw) || aLower.includes(mw));
+    if (matchesMoodText) {
+      score += 60;
+    }
+    // High playcount boost for verified mood hits in the target language
+    if (song.playCount > 1_000_000 && (preferredLang ? lang === preferredLang : userContext?.preferredLanguages?.has(lang))) {
+      score += 30;
+    }
   }
 
   // Penalty for secondary variations (karaoke, lullaby, workout mix, nightcore, 8d) unless explicitly requested
@@ -163,9 +247,6 @@ function computeScore(
           break;
         }
       }
-    }
-    if (userContext.preferredLanguages && lang && userContext.preferredLanguages.has(lang)) {
-      score += 15;
     }
   }
 
@@ -263,12 +344,37 @@ function knownArtistBonus(songArtist: string, query: string): number {
 
 
 // ════════════════════════════════════════════════════════════════
-// FACTOR 7 — LANGUAGE PREFERENCE
+// FACTOR 7 — LANGUAGE PREFERENCE & PROFILE ENFORCEMENT
 // ════════════════════════════════════════════════════════════════
-function languageScore(songLang: string, preferredLang?: string): number {
-  if (!preferredLang || !songLang) return 0;
-  if (songLang === preferredLang) return 15;
-  if (songLang === "english") return 5; // universally acceptable
+function languageScore(
+  songLang: string,
+  preferredLang?: string,
+  userLanguages?: Set<string>,
+  detectedMood?: string | null,
+): number {
+  if (!songLang) return 0;
+  const sLang = songLang.toLowerCase().trim();
+
+  // 1. Explicit Target/Filter Language (e.g. user selected Tamil or passed lang=tamil)
+  if (preferredLang) {
+    const pLang = preferredLang.toLowerCase().trim();
+    if (sLang === pLang) return 150; // Decisively boost requested language
+    // Heavy penalty for non-matching languages when a language is specifically requested
+    return sLang === "english" ? -30 : -160;
+  }
+
+  // 2. User Profile preferred languages (e.g. from user profile / preferences)
+  if (userLanguages && userLanguages.size > 0) {
+    if (userLanguages.has(sLang)) {
+      return detectedMood ? 120 : 60; // Extra heavy boost for user's profile languages on mood searches
+    }
+    // If user has language preferences and is searching a mood (like "sad"), strongly suppress foreign languages
+    if (detectedMood) {
+      return sLang === "english" ? -15 : -140;
+    }
+    return sLang === "english" ? 5 : -40;
+  }
+
   return 0;
 }
 
@@ -429,22 +535,50 @@ export function correctTypos(query: string): string {
   return query;
 }
 
-export function buildSearchQueries(query: string): {
+export function buildSearchQueries(
+  query: string,
+  userLanguages?: string[],
+  forcedLang?: string,
+): {
   queries: string[];
   knownArtist: string | null;
+  detectedMood: string | null;
+  targetLang: string | null;
 } {
   const corrected = correctTypos(query.trim());
   const q = corrected;
   const qLower = q.toLowerCase();
-  // Start with corrected query; if different from original, add original too
+
+  const queryLang = detectLanguageInQuery(qLower);
+  const targetLang = forcedLang || queryLang || (userLanguages && userLanguages[0]) || null;
+  const detectedMood = detectMood(qLower);
+
   const queries: string[] = [q];
   if (corrected.toLowerCase() !== query.trim().toLowerCase()) {
     queries.push(query.trim());
   }
 
+  // ── MOOD-BASED QUERY GENERATION ───────────────────────────────
+  // If user searched for a mood (e.g. "sad", "love", "party", "chill"):
+  // Automatically generate language-specific mood queries based on user's profile
+  if (detectedMood) {
+    const effectiveLangs = targetLang
+      ? [targetLang]
+      : (userLanguages && userLanguages.length > 0
+          ? userLanguages.slice(0, 3)
+          : ["tamil", "hindi", "telugu"]);
+
+    for (const l of effectiveLangs) {
+      queries.push(`${l} ${detectedMood} songs`);
+      queries.push(`${detectedMood} songs ${l}`);
+      queries.push(`${l} ${detectedMood} hits`);
+      queries.push(`best ${l} ${detectedMood} songs`);
+    }
+    queries.push(`${detectedMood} songs`);
+    queries.push(`${detectedMood} hits`);
+  }
+
   // ── KNOWN SONG: inject artist name ───────────────────────────
-  // The wrapper buries originals without the artist name in the query.
-  // "shape of you" → also search "shape of you Ed Sheeran"
   const knownArtist = getKnownArtist(qLower);
   if (
     knownArtist &&
@@ -455,12 +589,15 @@ export function buildSearchQueries(query: string): {
 
   // ── Short queries: artist/song discovery ─────────────────────
   const wordCount = q.split(/\s+/).length;
-  if (wordCount <= 2 && !knownArtist) {
+  if (wordCount <= 2 && !knownArtist && !detectedMood) {
     queries.push(`${q} songs`);
     queries.push(`${q} hits`);
+    if (targetLang) {
+      queries.push(`${q} ${targetLang}`);
+    }
   }
 
-  return { queries, knownArtist };
+  return { queries, knownArtist, detectedMood, targetLang };
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -476,8 +613,9 @@ export function rankSongs<T extends RankedSong>(
   preferLang?: string,
   knownArtist?: string,
   userContext?: UserPersonalizationContext,
+  detectedMood?: string | null,
 ): T[] {
-  return rankSearchResults(songs, query, preferLang, knownArtist, userContext) as T[];
+  return rankSearchResults(songs, query, preferLang, knownArtist, userContext, detectedMood) as T[];
 }
 
 // Deduplicate wrapper (alias with cleaner name)

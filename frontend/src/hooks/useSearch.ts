@@ -141,13 +141,16 @@ export function clearAllRecentSearches() {
 // ── Client-side in-memory search cache for instant repeat results ────────────
 const clientSearchCache = new Map<string, SmartSearchResult>();
 
-export function useSearch() {
+export function useSearch(options?: { lang?: string; userLangs?: string[] }) {
   const [query, setQuery] = useState("");
   const [debouncedQuery] = useDebounce(query, 180);
   const [debouncedSuggestion] = useDebounce(query, 100);
 
   const [state, setState] = useState<SearchState>("idle");
   const [result, setResult] = useState<SmartSearchResult | null>(null);
+
+  const selectedLang = options?.lang;
+  const userLanguages = options?.userLangs;
 
   // Suggestions
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
@@ -252,9 +255,11 @@ export function useSearch() {
       return;
     }
 
+    const cacheKey = `${term}:${selectedLang || ""}:${(userLanguages || []).join(",")}`;
+
     // Instant local cache hit: display immediately without flicker or network request
-    if (clientSearchCache.has(term)) {
-      const cached = clientSearchCache.get(term)!;
+    if (clientSearchCache.has(cacheKey)) {
+      const cached = clientSearchCache.get(cacheKey)!;
       setResult(cached);
       const hasResults =
         cached.songs.length > 0 ||
@@ -272,8 +277,14 @@ export function useSearch() {
     abortRef.current = new AbortController();
 
     try {
+      const params: any = { q: term, limit: 50 };
+      if (selectedLang) params.lang = selectedLang;
+      if (userLanguages && userLanguages.length > 0) {
+        params.userLangs = userLanguages.join(",");
+      }
+
       const { data } = await axios.get<SmartSearchResult>(`${API}/api/search`, {
-        params: { q: term, limit: 50 },
+        params,
         signal: abortRef.current.signal,
         withCredentials: true,
       });
@@ -285,7 +296,7 @@ export function useSearch() {
         albums: data.albums || [],
         artists: data.artists || [],
       };
-      clientSearchCache.set(term, safeData);
+      clientSearchCache.set(cacheKey, safeData);
       setResult(safeData);
       const hasResults =
         safeData.songs.length > 0 ||
@@ -297,11 +308,11 @@ export function useSearch() {
       console.error("Search error:", err);
       setState("error");
     }
-  }, []);
+  }, [selectedLang, userLanguages]);
 
   useEffect(() => {
     doSearch(debouncedQuery);
-  }, [debouncedQuery, doSearch]);
+  }, [debouncedQuery, doSearch, selectedLang, userLanguages?.join(",")]);
 
   const loadMore = useCallback(() => {
     // Current backend returns full results for ultra-fast performance.

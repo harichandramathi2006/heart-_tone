@@ -297,12 +297,40 @@ function ArtistCard({
   );
 }
 
+const AVAILABLE_LANGUAGES = [
+  { id: "", label: "All Languages" },
+  { id: "tamil", label: "Tamil" },
+  { id: "hindi", label: "Hindi" },
+  { id: "telugu", label: "Telugu" },
+  { id: "english", label: "English" },
+  { id: "punjabi", label: "Punjabi" },
+  { id: "malayalam", label: "Malayalam" },
+  { id: "kannada", label: "Kannada" },
+];
+
+const MOOD_COLLECTIONS = [
+  { id: "sad", label: "😢 Sad & Melancholy", query: "sad songs", color: "from-blue-600/20 to-slate-800/30 border-blue-500/20" },
+  { id: "romantic", label: "❤️ Romantic Love", query: "romantic love songs", color: "from-rose-600/20 to-pink-800/30 border-rose-500/20" },
+  { id: "party", label: "🎉 Party & Dance", query: "party dance hits", color: "from-amber-600/20 to-orange-800/30 border-amber-500/20" },
+  { id: "chill", label: "🌙 Late Night Chill", query: "chill lofi songs", color: "from-purple-600/20 to-indigo-800/30 border-purple-500/20" },
+  { id: "workout", label: "⚡ Workout Energy", query: "workout gym songs", color: "from-red-600/20 to-amber-800/30 border-red-500/20" },
+  { id: "melody", label: "🎵 90s Evergreen Melodies", query: "melody hits", color: "from-teal-600/20 to-emerald-800/30 border-teal-500/20" },
+  { id: "devotional", label: "🙏 Devotional & Peace", query: "devotional songs", color: "from-yellow-600/20 to-amber-800/30 border-yellow-500/20" },
+  { id: "mass", label: "🔥 Mass & Folk Beats", query: "mass songs", color: "from-orange-600/20 to-red-800/30 border-orange-500/20" },
+];
+
 // ─── Main SearchPage ─────────────────────────────────────────────────────────
 
 export function SearchPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const queryParam = searchParams.get("q") || "";
+  const langParam = searchParams.get("lang") || "";
+
+  const { user } = useAuth();
+  const userLangs = user?.preferences?.languages || [];
+
+  const [selectedLang, setSelectedLang] = useState<string>(langParam);
 
   const {
     query,
@@ -313,7 +341,7 @@ export function SearchPage() {
     showSuggestions,
     setShowSuggestions,
     reset,
-  } = useSearch();
+  } = useSearch({ lang: selectedLang || undefined, userLangs });
 
   const [activeTab, setActiveTab] = useState<TabType>("all");
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
@@ -330,9 +358,6 @@ export function SearchPage() {
     likedSongs,
     handleLike: onLike,
   } = useApp();
-
-  const { user } = useAuth();
-  const userLangs = user?.preferences?.languages || [];
 
   const popularSearches = React.useMemo(() => {
     const list: string[] = [];
@@ -377,7 +402,10 @@ export function SearchPage() {
     if (queryParam && queryParam !== query) {
       setQuery(queryParam);
     }
-  }, [queryParam, setQuery]);
+    if (langParam !== selectedLang) {
+      setSelectedLang(langParam);
+    }
+  }, [queryParam, langParam]);
 
   // Auto-focus search input smoothly on mount or navigation
   useEffect(() => {
@@ -395,7 +423,9 @@ export function SearchPage() {
     if (!searchTerm.trim()) return;
     saveRecentSearch(searchTerm);
     refreshRecentSearches();
-    setSearchParams({ q: searchTerm });
+    const nextParams: Record<string, string> = { q: searchTerm };
+    if (selectedLang) nextParams.lang = selectedLang;
+    setSearchParams(nextParams);
     setShowSuggestions(false);
     setSelectedIndex(-1);
     analytics.track("search", {
@@ -588,23 +618,55 @@ export function SearchPage() {
 
       {/* ── Filter Chips (Shown ONLY during search) ────────────────────── */}
       {query.trim() !== "" && (
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar animate-fadeIn">
-          {(["all", "songs", "albums", "artists"] as TabType[]).map((tab) => {
-            const isActive = activeTab === tab;
-            return (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`px-4 py-1.5 rounded-full text-xs font-bold capitalize transition-all duration-200 flex-shrink-0 ${
-                  isActive
-                    ? "bg-white text-black shadow-md scale-[1.02]"
-                    : "bg-white/10 text-white/70 hover:bg-white/15 hover:text-white"
-                }`}
-              >
-                {tab === "all" ? "All" : tab}
-              </button>
-            );
-          })}
+        <div className="space-y-2.5 animate-fadeIn">
+          {/* Content Type Tabs */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+            {(["all", "songs", "albums", "artists"] as TabType[]).map((tab) => {
+              const isActive = activeTab === tab;
+              return (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={`px-4 py-1.5 rounded-full text-xs font-bold capitalize transition-all duration-200 flex-shrink-0 ${
+                    isActive
+                      ? "bg-white text-black shadow-md scale-[1.02]"
+                      : "bg-white/10 text-white/70 hover:bg-white/15 hover:text-white"
+                  }`}
+                >
+                  {tab === "all" ? "All" : tab}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Language Selector Bar */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar pt-0.5">
+            <span className="text-[11px] font-bold text-white/40 uppercase tracking-wider pl-1 pr-1 flex-shrink-0">
+              Language:
+            </span>
+            {AVAILABLE_LANGUAGES.map((l) => {
+              const isSelected = selectedLang === l.id;
+              return (
+                <button
+                  key={l.id}
+                  onClick={() => {
+                    setSelectedLang(l.id);
+                    const nextParams = new URLSearchParams(searchParams);
+                    if (l.id) nextParams.set("lang", l.id);
+                    else nextParams.delete("lang");
+                    setSearchParams(nextParams);
+                  }}
+                  className={`px-3 py-1 rounded-full text-xs font-semibold transition-all flex-shrink-0 ${
+                    isSelected
+                      ? "bg-sp-green text-black font-bold shadow"
+                      : "bg-white/[0.05] hover:bg-white/[0.1] text-white/70"
+                  }`}
+                >
+                  {l.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
 
@@ -613,6 +675,36 @@ export function SearchPage() {
       {/* 1. IDLE / STATIC LANDING STATE (Recent Searches & Trending) */}
       {state === "idle" && !query.trim() && (
         <div className="space-y-8 animate-fadeIn pt-2">
+          {/* ── Mood & Emotion Discovery ── */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between px-1">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <Sparkles size={16} className="text-sp-green" />
+                Browse by Mood & Vibe
+              </h3>
+              {selectedLang && (
+                <span className="text-[11px] font-semibold text-sp-green/80 bg-sp-green/10 px-2 py-0.5 rounded-full border border-sp-green/20">
+                  Filtering: {selectedLang.toUpperCase()}
+                </span>
+              )}
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+              {MOOD_COLLECTIONS.map((m) => (
+                <div
+                  key={m.id}
+                  onClick={() => {
+                    const moodQ = m.query;
+                    setQuery(moodQ);
+                    handleSearchSubmit(moodQ);
+                  }}
+                  className={`p-3.5 rounded-2xl bg-gradient-to-br ${m.color} border hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer flex flex-col justify-between h-20 shadow-sm`}
+                >
+                  <span className="text-xs font-bold text-white tracking-wide">{m.label}</span>
+                  <span className="text-[10px] text-white/50 flex items-center gap-1 font-medium">Explore hits <ChevronRight size={10} /></span>
+                </div>
+              ))}
+            </div>
+          </div>
           {recentSearches.length > 0 && (
             <div className="space-y-3">
               <div className="flex items-center justify-between px-1">
