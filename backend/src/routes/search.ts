@@ -98,7 +98,7 @@ router.get("/", softAuth, async (req: SoftAuthRequest, res: Response): Promise<v
     /* miss */
   }
 
-  const { queries, knownArtist, detectedMood, targetLang } = buildSearchQueries(
+  const { queries, knownArtist, detectedMood, detectedEra, targetLang } = buildSearchQueries(
     q,
     preferredLangsList,
     lang || undefined,
@@ -114,6 +114,14 @@ router.get("/", softAuth, async (req: SoftAuthRequest, res: Response): Promise<v
       : [];
 
     // Phase 1: parallel deep recall across hybrid + regional + albums + artists
+    const albumQueries = [q];
+    if (targetLang && !q.toLowerCase().includes(targetLang.toLowerCase())) {
+      albumQueries.unshift(`${targetLang} ${q}`);
+    }
+    if (detectedEra) {
+      albumQueries.push(`${targetLang ? targetLang + " " : ""}${detectedEra.era} hits`);
+    }
+
     const [hybridRes, fallbackRes, allRes, artistRes, directAlbumRes] =
       await Promise.allSettled([
         searchSongsHybrid(primaryQuery, 50, knownArtist),
@@ -122,7 +130,9 @@ router.get("/", softAuth, async (req: SoftAuthRequest, res: Response): Promise<v
         ),
         searchAll(q),
         searchArtists(q, 8),
-        searchAlbums(q, 50),
+        Promise.allSettled(
+          albumQueries.map((aq) => searchAlbums(aq, 35)),
+        ),
       ]);
 
     const rawSongs: any[] = [];
@@ -148,20 +158,42 @@ router.get("/", softAuth, async (req: SoftAuthRequest, res: Response): Promise<v
     }
     if (allRes.status === "fulfilled") addSongs(allRes.value.songs);
 
-    // Merge albums from searchAll + searchAlbums
+    // Merge albums from searchAll + searchAlbums with strict language and relevance filtering
     const albumMap = new Map<string, any>();
     const allResAlbums = allRes.status === "fulfilled" ? allRes.value.albums : [];
-    const directAlbums = directAlbumRes.status === "fulfilled" ? directAlbumRes.value : [];
+    const directAlbums: any[] = [];
+    if (directAlbumRes.status === "fulfilled") {
+      for (const r of directAlbumRes.value) {
+        if (r.status === "fulfilled" && Array.isArray(r.value)) {
+          directAlbums.push(...r.value);
+        }
+      }
+    }
+
+    const userAllowedLangs = new Set<string>();
+    if (targetLang) userAllowedLangs.add(targetLang.toLowerCase());
+    if (preferredLangsList && preferredLangsList.length > 0) {
+      for (const pl of preferredLangsList) userAllowedLangs.add(pl.toLowerCase());
+    }
+    userAllowedLangs.add("english");
+    userAllowedLangs.add("instrumental");
 
     for (const alb of [...allResAlbums, ...directAlbums]) {
       const id = String(alb.id || "");
-      if (id && !albumMap.has(id)) {
-        albumMap.set(id, {
-          ...alb,
-          name: decodeHtmlEntities(alb.name || alb.title || ""),
-          primaryArtists: decodeHtmlEntities(alb.primaryArtists || alb.artist || "Various Artists")
-        });
+      if (!id || albumMap.has(id)) continue;
+
+      const albLang = (alb.language || "").trim().toLowerCase();
+      // Discard mismatching foreign language albums when target language is specified
+      if (userAllowedLangs.size > 2 && albLang && albLang !== "unknown" && !userAllowedLangs.has(albLang)) {
+        continue;
       }
+
+      albumMap.set(id, {
+        ...alb,
+        language: albLang,
+        name: decodeHtmlEntities(alb.name || alb.title || ""),
+        primaryArtists: decodeHtmlEntities(alb.primaryArtists || alb.artist || "Various Artists")
+      });
     }
 
     const tempAlbums = Array.from(albumMap.values());
@@ -257,11 +289,40 @@ router.get("/", softAuth, async (req: SoftAuthRequest, res: Response): Promise<v
 
     const rankedArtistsList = rankArtists(q, Array.from(artistMap.values()));
     const artists = rankedArtistsList.slice(0, 8);
-    const albums = Array.from(albumMap.values()).slice(0, 50);
+
+    const qLower = q.toLowerCase();
+    const sortedAlbums = Array.from(albumMap.values()).sort((a, b) => {
+      let scoreA = 0;
+      let scoreB = 0;
+      const aName = (a.name || "").toLowerCase();
+      const bName = (b.name || "").toLowerCase();
+      const aLang = (a.language || "").toLowerCase();
+      const bLang = (b.language || "").toLowerCase();
+
+      // Language alignment boost
+      if (targetLang && aLang === targetLang) scoreA += 50;
+      if (targetLang && bLang === targetLang) scoreB += 50;
+
+      // Exact title match boost
+      if (aName === qLower) scoreA += 80;
+      if (bName === qLower) scoreB += 80;
+      else if (aName.includes(qLower)) scoreA += 40;
+      else if (bName.includes(qLower)) scoreB += 40;
+
+      // Era alignment boost for albums
+      if (detectedEra) {
+        const aYear = parseInt(a.year || "", 10);
+        const bYear = parseInt(b.year || "", 10);
+        if (aYear >= detectedEra.startYear && aYear <= detectedEra.endYear) scoreA += 60;
+        if (bYear >= detectedEra.startYear && bYear <= detectedEra.endYear) scoreB += 60;
+      }
+
+      return scoreB - scoreA;
+    });
+    const albums = sortedAlbums.slice(0, 50);
 
     // Phase 1.5: Deep artist / album tracks ingestion ("without miss a single song")
     // If the top artist or album matches the user query, fetch their entire top catalog
-    const qLower = q.toLowerCase();
     const topArtist = artists[0];
     const topArtistNameLower = (topArtist?.name || "").toLowerCase();
     const isArtistMatch =
@@ -305,6 +366,7 @@ router.get("/", softAuth, async (req: SoftAuthRequest, res: Response): Promise<v
       knownArtist ?? undefined,
       userContext,
       detectedMood,
+      detectedEra,
     ) as Song[];
     // Cache the full ranked pool (up to 100) so any future request can get its own limit
     const allSongs = ranked.slice(0, 100);

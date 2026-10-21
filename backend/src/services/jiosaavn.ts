@@ -324,6 +324,8 @@ export async function searchAlbums(query: string, limit = 50): Promise<any[]> {
   const results = data?.data?.results || data?.results || [];
   return results.map((album: any) => ({
     ...album,
+    language: String(album.language || album.more_info?.language || "").toLowerCase(),
+    year: String(album.year || (album.releaseDate ? String(album.releaseDate).slice(0, 4) : "") || (album.more_info?.year || "")),
     name: decodeHtmlEntities(album.name || album.title),
     primaryArtists: decodeHtmlEntities(
       album.primaryArtists ||
@@ -541,7 +543,12 @@ export function normalizeSongToCanonical(raw: any): Song | null {
       typeof raw.album === "object" ? raw.album?.id || "" : raw.albumId || "",
     duration: Number(raw.duration) || 0,
     language: (raw.language || "").toLowerCase(),
-    year: String(raw.year || ""),
+    year: String(
+      raw.year ||
+      (raw.releaseDate ? String(raw.releaseDate).slice(0, 4) : "") ||
+      (raw.release_date ? String(raw.release_date).slice(0, 4) : "") ||
+      (raw.more_info?.year || "")
+    ),
     releaseDate: raw.releaseDate ? String(raw.releaseDate) : undefined,
     streamUrl,
     downloadUrl:
@@ -628,6 +635,7 @@ export async function searchAll(query: string): Promise<{
       .map((a: any) => ({
         id: String(a.id || ""),
         name: decodeHtmlEntities(a.name || a.title || ""),
+        language: String(a.language || a.more_info?.language || "").toLowerCase(),
         image: Array.isArray(a.image)
           ? a.image.find((i: any) => i.quality === "500x500")?.url ||
             a.image[a.image.length - 1]?.url ||

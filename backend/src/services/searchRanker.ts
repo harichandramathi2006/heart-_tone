@@ -20,6 +20,7 @@ export interface RankedSong {
   duration: number;
   language: string;
   year: string;
+  releaseDate?: string;
   streamUrl: string | null;
   downloadUrl: any[] | null;
   playCount: number;
@@ -107,15 +108,17 @@ export function rankSearchResults(
   knownArtist?: string | null,
   userContext?: UserPersonalizationContext,
   detectedMood?: string | null,
+  detectedEra?: DetectedEra | null,
 ): RankedSong[] {
   if (!songs || songs.length === 0) return [];
 
   const q = query.trim().toLowerCase();
+  const eraInfo = detectedEra !== undefined ? detectedEra : detectEra(q);
 
   // Score every song
   const scored = songs.map((song) => ({
     ...song,
-    _score: computeScore(song, q, preferredLang, knownArtist, userContext, detectedMood),
+    _score: computeScore(song, q, preferredLang, knownArtist, userContext, detectedMood, eraInfo),
   }));
 
   // Sort descending by score
@@ -137,6 +140,7 @@ function computeScore(
   knownArtist?: string | null,
   userContext?: UserPersonalizationContext,
   detectedMood?: string | null,
+  detectedEra?: DetectedEra | null,
 ): number {
   let score = 0;
 
@@ -204,6 +208,38 @@ function computeScore(
     const yr = parseInt(song.year, 10);
     if (yr >= 2024) score += 35;
     else if (yr >= 2020) score += 15;
+  }
+
+  // ── 10.2. ERA / DECADE FILTERING & BOOST (+220 / −250 pts) ───
+  if (detectedEra) {
+    let songYear = 0;
+    if (song.year) {
+      songYear = parseInt(song.year, 10);
+    } else if (song.releaseDate) {
+      songYear = parseInt(song.releaseDate.slice(0, 4), 10);
+    }
+
+    if (songYear > 0) {
+      if (songYear >= detectedEra.startYear && songYear <= detectedEra.endYear) {
+        score += 220; // Exact era match
+      } else if (
+        Math.abs(songYear - detectedEra.startYear) <= 2 ||
+        Math.abs(songYear - detectedEra.endYear) <= 2
+      ) {
+        score += 40; // Adjacent boundary year
+      } else {
+        score -= 600; // Strict penalty: out-of-decade songs cannot dominate era searches
+      }
+    } else {
+      const text = `${title} ${song.album || ""}`.toLowerCase();
+      if (
+        text.includes(detectedEra.era) ||
+        (detectedEra.era === "80s" && (text.includes("198") || text.includes("eighties"))) ||
+        (detectedEra.era === "90s" && (text.includes("199") || text.includes("nineties")))
+      ) {
+        score += 80;
+      }
+    }
   }
 
   // ── 10.5. MOOD RELEVANCE BOOST (+60 pts) ─────────────────────
@@ -494,6 +530,11 @@ export const KNOWN_SONGS: Record<string, string> = {
   baashha: "Deva",
   basha: "Deva",
   annamalai: "Deva",
+  "azhage azhage": "Uthara Unnikrishnan",
+  azhage: "Uthara Unnikrishnan",
+  "aasa kooda": "Sai Abhyankkar",
+  "enjoy enjaami": "Dhee",
+  orasaadha: "Mervin Solomon",
 };
 
 // Returns the known artist for a query, or null
@@ -509,10 +550,57 @@ export function getKnownArtist(query: string): string | null {
 // ════════════════════════════════════════════════════════════════
 export const KNOWN_SONG_IDS: Record<string, string[]> = {
   "shape of you": ["icJam_5l", "wwSCc15h"],
+  "azhage azhage": ["k7yD9gQ5", "Bszutabj", "O1aDQiCm"],
+  "azhage": ["k7yD9gQ5", "Bszutabj", "O1aDQiCm"],
+  "allagea allagea": ["k7yD9gQ5", "Bszutabj", "O1aDQiCm"],
+  "allagea": ["k7yD9gQ5", "Bszutabj", "O1aDQiCm"],
+  "alage alage": ["k7yD9gQ5", "Bszutabj", "O1aDQiCm"],
+  "tamil album songs": ["F_fgk0mb", "GUURlhr1", "x2z_VPDG", "SVhN9fzs", "P5pjB99X"],
+  "album songs": ["F_fgk0mb", "GUURlhr1", "x2z_VPDG", "SVhN9fzs", "P5pjB99X"],
+  "tamil album song": ["F_fgk0mb", "GUURlhr1", "x2z_VPDG", "SVhN9fzs", "P5pjB99X"],
+  "album song": ["F_fgk0mb", "GUURlhr1", "x2z_VPDG", "SVhN9fzs", "P5pjB99X"],
 };
 
 export function getKnownSongIds(query: string): string[] {
   return KNOWN_SONG_IDS[query.trim().toLowerCase()] ?? [];
+}
+
+// ════════════════════════════════════════════════════════════════
+// ERA / DECADE DETECTION (80s, 90s, 70s, 2000s, etc.)
+// ════════════════════════════════════════════════════════════════
+export interface DetectedEra {
+  era: string; // "80s", "90s", "70s", "60s", "50s", "2000s", "2010s", "2020s"
+  startYear: number;
+  endYear: number;
+}
+
+export function detectEra(query: string): DetectedEra | null {
+  const q = query.toLowerCase();
+  if (/\b(?:19)?80s\b|\beighties\b|\b198\d\b/i.test(q)) {
+    return { era: "80s", startYear: 1980, endYear: 1989 };
+  }
+  if (/\b(?:19)?90s\b|\bnineties\b|\b199\d\b/i.test(q)) {
+    return { era: "90s", startYear: 1990, endYear: 1999 };
+  }
+  if (/\b(?:19)?70s\b|\bseventies\b|\b197\d\b/i.test(q)) {
+    return { era: "70s", startYear: 1970, endYear: 1979 };
+  }
+  if (/\b(?:19)?60s\b|\bsixties\b|\b196\d\b/i.test(q)) {
+    return { era: "60s", startYear: 1960, endYear: 1969 };
+  }
+  if (/\b(?:19)?50s\b|\bfifties\b|\b195\d\b/i.test(q)) {
+    return { era: "50s", startYear: 1950, endYear: 1959 };
+  }
+  if (/\b(?:2000s|00s)\b|\b200\d\b/i.test(q)) {
+    return { era: "2000s", startYear: 2000, endYear: 2009 };
+  }
+  if (/\b(?:2010s|10s)\b|\b201\d\b/i.test(q)) {
+    return { era: "2010s", startYear: 2010, endYear: 2019 };
+  }
+  if (/\b(?:2020s|20s)\b|\b202\d\b/i.test(q)) {
+    return { era: "2020s", startYear: 2020, endYear: 2029 };
+  }
+  return null;
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -543,6 +631,7 @@ export function buildSearchQueries(
   queries: string[];
   knownArtist: string | null;
   detectedMood: string | null;
+  detectedEra: DetectedEra | null;
   targetLang: string | null;
 } {
   const corrected = correctTypos(query.trim());
@@ -552,22 +641,82 @@ export function buildSearchQueries(
   const queryLang = detectLanguageInQuery(qLower);
   const targetLang = forcedLang || queryLang || (userLanguages && userLanguages[0]) || null;
   const detectedMood = detectMood(qLower);
+  const detectedEra = detectEra(qLower);
 
   const queries: string[] = [q];
   if (corrected.toLowerCase() !== query.trim().toLowerCase()) {
     queries.push(query.trim());
   }
 
-  // ── MOOD-BASED QUERY GENERATION ───────────────────────────────
-  // If user searched for a mood (e.g. "sad", "love", "party", "chill"):
-  // Automatically generate language-specific mood queries based on user's profile
-  if (detectedMood) {
-    const effectiveLangs = targetLang
-      ? [targetLang]
-      : (userLanguages && userLanguages.length > 0
-          ? userLanguages.slice(0, 3)
-          : ["tamil", "hindi", "telugu"]);
+  const effectiveLangs = targetLang
+    ? [targetLang]
+    : (userLanguages && userLanguages.length > 0
+        ? userLanguages.slice(0, 3)
+        : ["tamil", "hindi", "telugu"]);
 
+  // ── INDIE / TAMIL ALBUM SONGS DISCOVERY ───────────────────────
+  const isIndieAlbumQuery = /\b(album\s*songs?|indie\s*songs?|private\s*songs?)\b/i.test(qLower);
+  if (isIndieAlbumQuery) {
+    for (const l of effectiveLangs) {
+      queries.push(`${l} indie songs`);
+      queries.push(`${l} indie hits`);
+      queries.push(`think indie ${l}`);
+      queries.push(`${l} independent singles`);
+      queries.push(`best ${l} album songs`);
+    }
+    queries.push("katchi sera");
+    queries.push("aasa kooda");
+    queries.push("enjoy enjaami");
+    queries.push("orasaadha");
+  }
+
+  // ── ERA-BASED DISCOVERY ───────────────────────────────────────
+  // Keep the era in all generated queries so JioSaavn returns decade-relevant tracks
+  if (detectedEra) {
+    const eraStr = detectedEra.era;
+    if (detectedMood) {
+      for (const l of effectiveLangs) {
+        queries.push(`${l} ${eraStr} ${detectedMood} songs`);
+        queries.push(`${eraStr} ${l} ${detectedMood} songs`);
+        queries.push(`${l} ${detectedMood} songs ${eraStr}`);
+        queries.push(`${l} ${eraStr} hits`);
+        queries.push(`${l} ${eraStr} songs`);
+        queries.push(`${eraStr} ${l} songs`);
+        if (l === "tamil") {
+          if (eraStr === "80s") {
+            queries.push("80s tamil sad");
+            queries.push("tamil 80s hits");
+            queries.push("80s tamil songs");
+          } else if (eraStr === "90s") {
+            queries.push("tamil 90s sad");
+            queries.push("90s tamil sad songs");
+            queries.push("tamil 90s hits");
+            queries.push("90s tamil songs");
+          }
+        }
+      }
+      queries.push(`${eraStr} ${detectedMood} songs`);
+      queries.push(`${eraStr} songs`);
+    } else {
+      for (const l of effectiveLangs) {
+        queries.push(`${l} ${eraStr} songs`);
+        queries.push(`${eraStr} ${l} hits`);
+        queries.push(`${l} ${eraStr} hits`);
+        if (l === "tamil") {
+          if (eraStr === "80s") {
+            queries.push("tamil 80s hits");
+            queries.push("80s tamil songs");
+          } else if (eraStr === "90s") {
+            queries.push("tamil 90s hits");
+            queries.push("90s tamil songs");
+          }
+        }
+      }
+      queries.push(`${eraStr} songs`);
+      queries.push(`${eraStr} hits`);
+    }
+  } else if (detectedMood) {
+    // Standard mood-based queries when no era specified
     for (const l of effectiveLangs) {
       queries.push(`${l} ${detectedMood} songs`);
       queries.push(`${detectedMood} songs ${l}`);
@@ -589,7 +738,7 @@ export function buildSearchQueries(
 
   // ── Short queries: artist/song discovery ─────────────────────
   const wordCount = q.split(/\s+/).length;
-  if (wordCount <= 2 && !knownArtist && !detectedMood) {
+  if (wordCount <= 2 && !knownArtist && !detectedMood && !detectedEra && !isIndieAlbumQuery) {
     queries.push(`${q} songs`);
     queries.push(`${q} hits`);
     if (targetLang) {
@@ -597,7 +746,7 @@ export function buildSearchQueries(
     }
   }
 
-  return { queries, knownArtist, detectedMood, targetLang };
+  return { queries, knownArtist, detectedMood, detectedEra, targetLang };
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -614,8 +763,9 @@ export function rankSongs<T extends RankedSong>(
   knownArtist?: string,
   userContext?: UserPersonalizationContext,
   detectedMood?: string | null,
+  detectedEra?: DetectedEra | null,
 ): T[] {
-  return rankSearchResults(songs, query, preferLang, knownArtist, userContext, detectedMood) as T[];
+  return rankSearchResults(songs, query, preferLang, knownArtist, userContext, detectedMood, detectedEra) as T[];
 }
 
 // Deduplicate wrapper (alias with cleaner name)
