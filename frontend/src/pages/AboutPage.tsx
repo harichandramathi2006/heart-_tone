@@ -183,9 +183,6 @@ export default function AboutPage() {
               <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight leading-tight">
                 About HeartTone
               </h1>
-              <p className="text-white/35 text-xs mt-0.5">
-                Crafted with love by Arunkumar & Darshana
-              </p>
             </div>
           </div>
           <span className="px-2.5 py-1 rounded-lg bg-white/[0.04] border border-white/[0.08] text-[11px] font-semibold text-white/50 flex-shrink-0 mt-0.5">
