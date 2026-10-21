@@ -153,7 +153,7 @@ HeartTone follows a decoupled client-server architecture:
 
 ## 👥 Authors & Credits
 
-Crafted with love by **Arunkumar** & **Darshana**.
+
 
 ## 📄 License
 
