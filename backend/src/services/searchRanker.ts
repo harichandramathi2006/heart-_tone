@@ -183,7 +183,23 @@ function computeScore(
   score += coverPenalty(title, query.toLowerCase());
 
   // ── 3. TITLE MATCH SCORE (0–60 pts) ──────────────────────────
-  score += titleMatchScore(title, qTitle);
+  // For mood searches (e.g. "sad", "sad songs", "romantic songs"), genuine masterpieces
+  // like "Kanave Kanave", "Poove Sempoove", "Pona Pogattum" don't have the word "sad" in the title.
+  // We MUST NOT reward random songs that happen to have "sad" or "song" in their title!
+  const isGenericMoodQuery = Boolean(detectedMood) && (
+    qTitle === detectedMood ||
+    qTitle === `${detectedMood} song` ||
+    qTitle === `${detectedMood} songs` ||
+    qTitle === `${detectedMood} hits` ||
+    qTitle.startsWith(`${detectedMood} `) ||
+    qTitle.endsWith(` ${detectedMood}`) ||
+    qTitle.endsWith(" songs") ||
+    qTitle.endsWith(" song")
+  );
+
+  if (!isGenericMoodQuery) {
+    score += titleMatchScore(title, qTitle);
+  }
 
   // ── 4. ARTIST MATCH BONUS (0–25 pts) ─────────────────────────
   score += artistMatchScore(artist, q);
@@ -407,21 +423,21 @@ function languageScore(
   // 1. Explicit Target/Filter Language (e.g. user selected Tamil or passed lang=tamil)
   if (preferredLang) {
     const pLang = preferredLang.toLowerCase().trim();
-    if (sLang === pLang) return 150; // Decisively boost requested language
+    if (sLang === pLang) return 180; // Decisively boost requested language
     // Heavy penalty for non-matching languages when a language is specifically requested
-    return sLang === "english" ? -30 : -160;
+    return sLang === "english" ? -40 : -450;
   }
 
   // 2. User Profile preferred languages (e.g. from user profile / preferences)
   if (userLanguages && userLanguages.size > 0) {
     if (userLanguages.has(sLang)) {
-      return detectedMood ? 120 : 60; // Extra heavy boost for user's profile languages on mood searches
+      return detectedMood ? 180 : 80; // Extra heavy boost for user's profile languages on mood searches
     }
-    // If user has language preferences and is searching a mood (like "sad"), strongly suppress foreign languages
+    // If user has language preferences and is searching a mood (like "sad"), strictly suppress foreign languages
     if (detectedMood) {
-      return sLang === "english" ? -15 : -140;
+      return sLang === "english" ? -40 : -450;
     }
-    return sLang === "english" ? 5 : -40;
+    return sLang === "english" ? 5 : -50;
   }
 
   return 0;
@@ -585,6 +601,53 @@ export const TAMIL_ITEM_SONG_IDS = [
   "BNTdBvwL", // Ta Takkara (Kalki)
 ];
 
+// ── NAVARASA NAYAGAN ACTOR KARTHIK EVERGREEN HITS ───────────────
+export const ACTOR_KARTHIK_SONG_IDS = [
+  "RFdlNpGp", // Raaja Raajathi (Agni Natchathiram)
+  "OpkzpJyV", // Ninnukori Varanam (Agni Natchathiram)
+  "I95yYHce", // Oru Poonga Vanam (Agni Natchathiram)
+  "htSr6ehq", // Nilaave Vaa (Mouna Ragam)
+  "Bbf6pLX8", // Chinna Chinna Vanna Kuyil (Mouna Ragam)
+  "71Br7RQn", // Ayiram Thamarai (Alaigal Oyvatillai)
+  "3LbrtIWH", // Pachamala Poovu (Kizhakku Vaasal)
+  "lAY1VhMg", // Paadi Parandha (Kizhakku Vaasal)
+  "LJMWRyOG", // Azagiya Laila (Ullathai Alli Thaa)
+  "fuNy3nG2", // Edho Oru Paattu (Unnidathil Ennai Koduthen)
+  "qdJEhETW", // Kadhal Kavithaigal (Gopura Vaasalile)
+  "jo8F6Ngv", // Thaalattum Poongaatru (Gopura Vaasalile)
+  "UPAmK88q", // Keladi En Paavaiye (Gopura Vaasalile)
+  "IhCXE0M8", // Priyasaki (Gopura Vaasalile)
+  "jLGiBZ9c", // Pazhamuthir Cholai (Varusham Padhinaaru)
+  "b3foeDJ4", // Hey Aiyasamy (Varusham Padhinaaru)
+  "mLX6EVst", // Gangai Karai Mannanadi (Varusham Padhinaaru)
+  "wA9q2Igf", // Velvetta Velvetta (Mettukudi)
+  "a2McAxDq", // Chandirane Suriyane (Amaran)
+  "7Ivrx1fT", // Musthafa Musthafa (Amaran)
+];
+
+// ── TAMIL ALL-TIME CLASSIC & MODERN SAD/HEARTBREAK MASTERPIECES ──
+export const TAMIL_SAD_SONG_IDS = [
+  "itXw9yrX", // Kanave Kanave (David)
+  "PiRRAGim", // Poove Sempoove (Solla Thudikuthu Manasu)
+  "wo8Ig0KX", // Kanne Kalaimaane (Moondram Pirai)
+  "AoIGPJrx", // Pona Pogattum (Master)
+  "IRMwW4Eq", // Amma Endru (Mannan)
+  "KLvjpT0S", // En Kadhal Solla (Paiya)
+  "sa4mKbze", // Nenjukkul Peidhidum (Vaaranam Aayiram)
+  "KyRLikuY", // Oru Naalil (Pudhupettai)
+  "erqgjdbl", // Venmathiye (Minnale)
+  "MzOsYorg", // Thalli Pogathey (Achcham Yenbadhu Madamaiyada)
+  "yZSd2-yD", // Idhazhin Oram (3)
+  "qfDlsdwx", // Thendral Vandhu Theendumbothu (Avatharam)
+  "41VQDqwe", // Usure Pogudhey (Raavanan)
+  "Xv8O6Q_O", // Oru Dheivam Thantha Poove (Kannathil Muthamittal)
+  "xpf7ivHq", // Unakkenna Venum Sollu (Yennai Arindhaal)
+  "f5qzTLRh", // Nenjame Nenjame (Maamannan)
+  "9BQRo0cS", // Aarariraro (Raam)
+  "DKzv388T", // Maruvaarthai (Enai Noki Paayum Thota)
+  "3bqwaRv5", // Urugi Urugi (Joe)
+];
+
 export const KNOWN_SONG_IDS: Record<string, string[]> = {
   "item songs": TAMIL_ITEM_SONG_IDS,
   "item song": TAMIL_ITEM_SONG_IDS,
@@ -601,6 +664,34 @@ export const KNOWN_SONG_IDS: Record<string, string[]> = {
   "item dance songs": TAMIL_ITEM_SONG_IDS,
   "kuthu songs": TAMIL_ITEM_SONG_IDS,
   "tamil kuthu songs": TAMIL_ITEM_SONG_IDS,
+  "actor karthik": ACTOR_KARTHIK_SONG_IDS,
+  "actor karthik songs": ACTOR_KARTHIK_SONG_IDS,
+  "actor karthik hits": ACTOR_KARTHIK_SONG_IDS,
+  "karthik actor": ACTOR_KARTHIK_SONG_IDS,
+  "karthik actor songs": ACTOR_KARTHIK_SONG_IDS,
+  "karthik actor hits": ACTOR_KARTHIK_SONG_IDS,
+  "navarasa nayagan": ACTOR_KARTHIK_SONG_IDS,
+  "navarasa nayagan karthik": ACTOR_KARTHIK_SONG_IDS,
+  "navarasanayagan": ACTOR_KARTHIK_SONG_IDS,
+  "navarasa nayagan karthik songs": ACTOR_KARTHIK_SONG_IDS,
+  "navarasa nayagan songs": ACTOR_KARTHIK_SONG_IDS,
+  "karthik muthuraman": ACTOR_KARTHIK_SONG_IDS,
+  "sad songs": TAMIL_SAD_SONG_IDS,
+  "sad song": TAMIL_SAD_SONG_IDS,
+  "tamil sad songs": TAMIL_SAD_SONG_IDS,
+  "tamil sad song": TAMIL_SAD_SONG_IDS,
+  "sad tamil songs": TAMIL_SAD_SONG_IDS,
+  "sad tamil song": TAMIL_SAD_SONG_IDS,
+  "sogam songs": TAMIL_SAD_SONG_IDS,
+  "sogam song": TAMIL_SAD_SONG_IDS,
+  "tamil sogam songs": TAMIL_SAD_SONG_IDS,
+  "soga padalgal": TAMIL_SAD_SONG_IDS,
+  "breakup songs": TAMIL_SAD_SONG_IDS,
+  "tamil breakup songs": TAMIL_SAD_SONG_IDS,
+  "break up songs": TAMIL_SAD_SONG_IDS,
+  "feeling sad": TAMIL_SAD_SONG_IDS,
+  "heartbreak songs": TAMIL_SAD_SONG_IDS,
+  "tamil heartbreak songs": TAMIL_SAD_SONG_IDS,
   "shape of you": ["icJam_5l", "wwSCc15h"],
   "azhage azhage": ["k7yD9gQ5", "Bszutabj", "O1aDQiCm"],
   "azhage": ["k7yD9gQ5", "Bszutabj", "O1aDQiCm"],
@@ -618,6 +709,18 @@ export function getKnownSongIds(query: string): string[] {
   if (KNOWN_SONG_IDS[qClean]) return KNOWN_SONG_IDS[qClean];
   if (/\b(items?|item\s*songs?|kuthu\s*songs?|masala\s*songs?)\b/i.test(qClean)) {
     return TAMIL_ITEM_SONG_IDS;
+  }
+  if (
+    /\b(actor\s*karthik|karthik\s*actor|navarasa\s*nayagan|navarasanayagan|karthik\s*muthuraman)\b/i.test(qClean) ||
+    (qClean.includes("karthik") && /\b(actor|hero|navarasa)\b/i.test(qClean))
+  ) {
+    return ACTOR_KARTHIK_SONG_IDS;
+  }
+  if (
+    /\b(sad\s*songs?|sogam\s*songs?|soga\s*padalgal?|breakup\s*songs?|break\s*up\s*songs?|heartbreak\s*songs?|feeling\s*sad)\b/i.test(qClean) ||
+    qClean === "sad" || qClean === "sogam"
+  ) {
+    return TAMIL_SAD_SONG_IDS;
   }
   return [];
 }
@@ -711,6 +814,24 @@ export function buildSearchQueries(
         ? userLanguages.slice(0, 3)
         : ["tamil", "hindi", "telugu"]);
 
+  // ── ACTOR KARTHIK EVERGREEN DISCOVERY ────────────────────────
+  const isActorKarthikQuery =
+    /\b(actor\s*karthik|karthik\s*actor|navarasa\s*nayagan|navarasanayagan|karthik\s*muthuraman)\b/i.test(qLower) ||
+    (qLower.includes("karthik") && /\b(actor|hero|navarasa)\b/i.test(qLower));
+
+  if (isActorKarthikQuery) {
+    queries.unshift("karthik tamil actor hits");
+    queries.push("Agni Natchathiram songs");
+    queries.push("Kizhakku Vaasal songs");
+    queries.push("Varusham Padhinaaru songs");
+    queries.push("Gopura Vaasalile songs");
+    queries.push("Alaigal Oivathillai songs");
+    queries.push("Ullathai Alli Thaa songs");
+    queries.push("Unnidathil Ennai Koduthen songs");
+    queries.push("Mettukudi songs");
+    queries.push("Mouna Ragam songs");
+  }
+
   // ── ITEM SONGS / KUTHU DISCOVERY ──────────────────────────────
   const isItemQuery = /\b(items?|item\s*songs?|kuthu\s*songs?|masala\s*songs?)\b/i.test(qLower);
   if (isItemQuery) {
@@ -796,11 +917,31 @@ export function buildSearchQueries(
     }
   } else if (detectedMood) {
     // Standard mood-based queries when no era specified
+    const mainLang = targetLang || (effectiveLangs && effectiveLangs[0]) || "tamil";
+    // If the user's raw query didn't specify a language, place language-specific mood queries FIRST
+    // so JioSaavn never runs raw English mood words that produce Bhojpuri/Punjabi false positives
+    if (!queryLang && mainLang) {
+      queries.unshift(`${mainLang} ${detectedMood} songs`);
+      queries.unshift(`${mainLang} ${detectedMood} hits`);
+    }
+
     for (const l of effectiveLangs) {
       queries.push(`${l} ${detectedMood} songs`);
       queries.push(`${detectedMood} songs ${l}`);
       queries.push(`${l} ${detectedMood} hits`);
       queries.push(`best ${l} ${detectedMood} songs`);
+      if (l === "tamil" && detectedMood === "sad") {
+        queries.push("tamil sogam padalgal");
+        queries.push("tamil breakup songs");
+        queries.push("tamil feeling sad");
+        queries.push("kanave kanave");
+        queries.push("poove sempoove");
+        queries.push("pona pogattum");
+        queries.push("kanne kalaimane");
+        queries.push("amma endru azhaikkatha");
+        queries.push("en kadhal solla");
+        queries.push("nenjukkul peidhidum");
+      }
     }
     queries.push(`${detectedMood} songs`);
     queries.push(`${detectedMood} hits`);

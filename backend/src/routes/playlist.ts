@@ -2,7 +2,7 @@ import { Router, Response } from "express";
 import { Playlist } from "../models/Playlist.js";
 import { authMiddleware, AuthRequest } from "../middleware/auth.js";
 import { softAuth, SoftAuthRequest } from "../middleware/softAuth.js";
-import { TAMIL_ITEM_SONG_IDS } from "../services/searchRanker.js";
+import { TAMIL_ITEM_SONG_IDS, ACTOR_KARTHIK_SONG_IDS, TAMIL_SAD_SONG_IDS } from "../services/searchRanker.js";
 import { fetchSongsByIds } from "../services/jiosaavn.js";
 
 const router = Router();
@@ -10,25 +10,47 @@ const router = Router();
 // GET /api/playlists — All user playlists (without songs for speed)
 router.get("/", softAuth, async (req: SoftAuthRequest, res: Response): Promise<void> => {
   try {
-    const featuredPlaylist = {
-      _id: "tamil-item-songs",
-      name: "Tamil Item & Kuthu All-Time Hits",
-      description: "The ultimate collection of iconic Kollywood item numbers, kuthu beats & dance bangers.",
-      coverImage: "https://c.saavncdn.com/editorial/charts_Tamil1990s_190250_20240408062124_500x500.jpg",
-      isPublic: true,
-      songCount: TAMIL_ITEM_SONG_IDS.length,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+    const featuredPlaylists = [
+      {
+        _id: "tamil-sad-songs",
+        name: "Tamil Heartbreak & Soulful Sad Melodies",
+        description: "Deeply emotional Tamil heartbreak songs, soul-stirring melodies & all-time melancholy masterpieces.",
+        coverImage: "https://c.saavncdn.com/editorial/charts_TamilRomanticHits_186358_20240408062031_500x500.jpg",
+        isPublic: true,
+        songCount: TAMIL_SAD_SONG_IDS.length,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+      {
+        _id: "actor-karthik-hits",
+        name: "Navarasa Nayagan Karthik All-Time Blockbuster Hits",
+        description: "Timeless romantic, melody and mass evergreen hits of Actor Karthik from Agni Natchathiram, Mouna Ragam, Kizhakku Vaasal & more.",
+        coverImage: "https://c.saavncdn.com/editorial/charts_Tamil1990s_190250_20240408062124_500x500.jpg",
+        isPublic: true,
+        songCount: ACTOR_KARTHIK_SONG_IDS.length,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+      {
+        _id: "tamil-item-songs",
+        name: "Tamil Item & Kuthu All-Time Hits",
+        description: "The ultimate collection of iconic Kollywood item numbers, kuthu beats & dance bangers.",
+        coverImage: "https://c.saavncdn.com/editorial/charts_Tamil1990s_190250_20240408062124_500x500.jpg",
+        isPublic: true,
+        songCount: TAMIL_ITEM_SONG_IDS.length,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    ];
 
     if (!req.userId) {
-      res.json({ playlists: [featuredPlaylist] });
+      res.json({ playlists: featuredPlaylists });
       return;
     }
     const playlists = await Playlist.find({ userId: req.userId })
       .select("-songs")
       .sort({ updatedAt: -1 });
-    res.json({ playlists: [featuredPlaylist, ...playlists] });
+    res.json({ playlists: [...featuredPlaylists, ...playlists] });
   } catch (err) {
     console.error("[Playlist] List error:", err);
     res.status(500).json({ error: "Failed to fetch playlists" });
@@ -67,6 +89,46 @@ router.post("/", authMiddleware, async (req: AuthRequest, res: Response): Promis
 router.get("/:id", softAuth, async (req: SoftAuthRequest, res: Response): Promise<void> => {
   try {
     const id = req.params.id;
+    if (id === "tamil-sad-songs" || id === "tamil-sad-hits" || id === "sad-songs") {
+      const songs = await fetchSongsByIds(TAMIL_SAD_SONG_IDS);
+      res.json({
+        playlist: {
+          _id: "tamil-sad-songs",
+          name: "Tamil Heartbreak & Soulful Sad Melodies",
+          description: "Deeply emotional Tamil heartbreak songs, soul-stirring melodies & all-time melancholy masterpieces.",
+          coverImage: "https://c.saavncdn.com/editorial/charts_TamilRomanticHits_186358_20240408062031_500x500.jpg",
+          userId: "hearttone-official",
+          isAIGenerated: false,
+          isPublic: true,
+          songs: songs.map((s, idx) => ({
+            ...s,
+            addedAt: new Date(Date.now() - idx * 3600000).toISOString(),
+          })),
+        },
+      });
+      return;
+    }
+
+    if (id === "actor-karthik-hits" || id === "karthik-hits" || id === "navarasa-nayagan-karthik") {
+      const songs = await fetchSongsByIds(ACTOR_KARTHIK_SONG_IDS);
+      res.json({
+        playlist: {
+          _id: "actor-karthik-hits",
+          name: "Navarasa Nayagan Karthik All-Time Blockbuster Hits",
+          description: "Timeless romantic, melody and mass evergreen hits of Actor Karthik from Agni Natchathiram, Mouna Ragam, Kizhakku Vaasal & more.",
+          coverImage: "https://c.saavncdn.com/editorial/charts_Tamil1990s_190250_20240408062124_500x500.jpg",
+          userId: "hearttone-official",
+          isAIGenerated: false,
+          isPublic: true,
+          songs: songs.map((s, idx) => ({
+            ...s,
+            addedAt: new Date(Date.now() - idx * 3600000).toISOString(),
+          })),
+        },
+      });
+      return;
+    }
+
     if (id === "tamil-item-songs" || id === "tamil-item-hits" || id === "item-songs") {
       const songs = await fetchSongsByIds(TAMIL_ITEM_SONG_IDS);
       res.json({

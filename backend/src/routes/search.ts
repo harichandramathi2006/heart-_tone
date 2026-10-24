@@ -13,6 +13,7 @@ import {
   rankArtists,
   fetchArtistSongs,
   fetchAlbumSongs,
+  getPlaylistSongs,
   fetchSongById,
   fetchSongsByIds,
   getSuggestions,
@@ -344,11 +345,24 @@ router.get("/", softAuth, async (req: SoftAuthRequest, res: Response): Promise<v
         topAlbumNameLower.includes(qLower) ||
         qLower.includes(topAlbumNameLower));
 
-    if (isArtistMatch || isAlbumMatch) {
+    const rawPlaylists = playlistRes.status === "fulfilled" && Array.isArray(playlistRes.value)
+      ? playlistRes.value
+      : [];
+
+    const isMoodQuery = Boolean(detectedMood);
+    const topPlaylist = rawPlaylists[0];
+    const isPlaylistMoodMatch =
+      isMoodQuery &&
+      topPlaylist &&
+      topPlaylist.id &&
+      (userAllowedLangs.size <= 2 || !topPlaylist.language || userAllowedLangs.has(topPlaylist.language.toLowerCase()));
+
+    if (isArtistMatch || isAlbumMatch || isPlaylistMoodMatch) {
       try {
-        const [artistExtra, albumExtra] = await Promise.allSettled([
+        const [artistExtra, albumExtra, playlistExtra] = await Promise.allSettled([
           isArtistMatch ? fetchArtistSongs(topArtist.id, 1, 3) : Promise.resolve([]),
           isAlbumMatch ? fetchAlbumSongs(topAlbum.id) : Promise.resolve([]),
+          isPlaylistMoodMatch ? getPlaylistSongs(topPlaylist.id) : Promise.resolve([]),
         ]);
         if (artistExtra.status === "fulfilled" && Array.isArray(artistExtra.value)) {
           addSongs(artistExtra.value);
@@ -356,10 +370,21 @@ router.get("/", softAuth, async (req: SoftAuthRequest, res: Response): Promise<v
         if (albumExtra.status === "fulfilled" && Array.isArray(albumExtra.value)) {
           addSongs(albumExtra.value);
         }
+        if (playlistExtra.status === "fulfilled" && Array.isArray(playlistExtra.value)) {
+          addSongs(playlistExtra.value);
+        }
       } catch {}
     }
 
-    const normalized = normalizeSongsToCanonical(rawSongs);
+    // Filter out unrelated foreign language noise when searching for moods or specific languages
+    const songsToNormalize = (detectedMood && userAllowedLangs.size > 2)
+      ? rawSongs.filter((s) => {
+          const sLang = (s.language || "").trim().toLowerCase();
+          return !sLang || sLang === "unknown" || userAllowedLangs.has(sLang);
+        })
+      : rawSongs;
+
+    const normalized = normalizeSongsToCanonical(songsToNormalize);
     const deduped = dedupSongs(normalized as RankedSong[]) as Song[];
     const pinnedSet = new Set(pinnedIds);
     const ranked = rankSongs(
@@ -376,10 +401,6 @@ router.get("/", softAuth, async (req: SoftAuthRequest, res: Response): Promise<v
     const allSongs = ranked.slice(0, 100);
     const songs = allSongs.slice(0, limit);
 
-    const rawPlaylists = playlistRes.status === "fulfilled" && Array.isArray(playlistRes.value)
-      ? playlistRes.value
-      : [];
-
     const playlists: any[] = [];
     const isItemOrParty =
       /\b(item|items|kuthu|dance|party|club|masala)\b/i.test(qLower) ||
@@ -395,6 +416,38 @@ router.get("/", softAuth, async (req: SoftAuthRequest, res: Response): Promise<v
         songCount: 21,
         type: "playlist",
         url: "/playlist/tamil-item-songs",
+      });
+    }
+
+    const isSadMood =
+      /\b(sad|sogam|soga|breakup|break\s*up|heartbreak|melancholy|crying|pain|alone)\b/i.test(qLower) ||
+      detectedMood === "sad";
+
+    if (isSadMood) {
+      playlists.push({
+        id: "tamil-sad-songs",
+        name: "Tamil Heartbreak & Soulful Sad Melodies",
+        description: "Deeply emotional Tamil heartbreak songs, soul-stirring melodies & all-time melancholy masterpieces.",
+        image: "https://c.saavncdn.com/editorial/charts_TamilRomanticHits_186358_20240408062031_500x500.jpg",
+        songCount: 19,
+        type: "playlist",
+        url: "/playlist/tamil-sad-songs",
+      });
+    }
+
+    const isActorKarthik =
+      /\b(actor\s*karthik|karthik\s*actor|navarasa\s*nayagan|navarasanayagan|karthik\s*muthuraman)\b/i.test(qLower) ||
+      (qLower.includes("karthik") && /\b(hits|songs|actor|hero|old|evergreen)\b/i.test(qLower));
+
+    if (isActorKarthik) {
+      playlists.push({
+        id: "actor-karthik-hits",
+        name: "Navarasa Nayagan Karthik All-Time Blockbuster Hits",
+        description: "Timeless romantic, melody and mass evergreen hits of Actor Karthik from Agni Natchathiram, Mouna Ragam, Kizhakku Vaasal & more.",
+        image: "https://c.saavncdn.com/editorial/charts_Tamil1990s_190250_20240408062124_500x500.jpg",
+        songCount: 20,
+        type: "playlist",
+        url: "/playlist/actor-karthik-hits",
       });
     }
 

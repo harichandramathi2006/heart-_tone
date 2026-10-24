@@ -40,7 +40,7 @@ type TabType = "all" | "songs" | "albums" | "artists" | "playlists";
 
 const POPULAR_BY_LANG: Record<string, string[]> = {
   tamil: [
-    "Anirudh Ravichander", "A.R. Rahman", "Sid Sriram", "Yuvan Shankar Raja",
+    "Anirudh Ravichander", "A.R. Rahman", "Actor Karthik Hits", "Sid Sriram", "Yuvan Shankar Raja",
     "Sai Abhyankkar", "Hukum", "Katchi Sera", "Coolie Soundtrack", "Paal Dabba"
   ],
   hindi: [
@@ -356,8 +356,9 @@ const AVAILABLE_LANGUAGES = [
 ];
 
 const MOOD_COLLECTIONS = [
-  { id: "item", label: "💃 Tamil Item & Kuthu Hits", query: "tamil item songs", color: "from-fuchsia-600/25 to-pink-800/35 border-fuchsia-500/30" },
+  { id: "karthik", label: "🌟 Navarasa Nayagan Karthik Hits", query: "actor karthik songs", color: "from-amber-600/25 to-yellow-800/35 border-amber-500/30" },
   { id: "sad", label: "😢 Sad & Melancholy", query: "sad songs", color: "from-blue-600/20 to-slate-800/30 border-blue-500/20" },
+  { id: "item", label: "💃 Tamil Item & Kuthu Hits", query: "tamil item songs", color: "from-fuchsia-600/25 to-pink-800/35 border-fuchsia-500/30" },
   { id: "romantic", label: "❤️ Romantic Love", query: "romantic love songs", color: "from-rose-600/20 to-pink-800/30 border-rose-500/20" },
   { id: "party", label: "🎉 Party & Dance", query: "party dance hits", color: "from-amber-600/20 to-orange-800/30 border-amber-500/20" },
   { id: "chill", label: "🌙 Late Night Chill", query: "chill lofi songs", color: "from-purple-600/20 to-indigo-800/30 border-purple-500/20" },
