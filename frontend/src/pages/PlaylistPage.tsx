@@ -212,24 +212,42 @@ export default function PlaylistPage() {
   const isOwner = user?._id === playlist.userId;
 
   // Map playlist songs → player-compatible format with download URLs
-  const mapSong = (s: PlaylistSong) =>
-    ({
-      id: s.songId,
-      name: s.title,
-      image: s.albumArt ? [{ quality: "500x500", url: s.albumArt }] : [],
-      duration: s.duration,
-      primaryArtists: s.artist,
-      downloadUrl: (s.downloadUrl || []).map((u) => ({
-        quality: u.quality,
-        url: u.url,
-      })),
-      download_url: (s.downloadUrl || []).map((u) => ({
-        quality: u.quality,
-        link: u.url,
-      })),
-    }) as any;
+  const mapSong = (s: any) => {
+    const songId = String(s.songId || s.id || "");
+    const title = String(s.title || s.name || "Untitled");
+    const artist = String(s.artist || s.primaryArtists || "");
+    let art = "";
+    if (typeof s.image === "string") {
+      art = s.image;
+    } else if (Array.isArray(s.image) && s.image.length > 0) {
+      art = s.image[s.image.length - 1]?.url || s.image[0]?.url || "";
+    } else if (s.albumArt) {
+      art = s.albumArt;
+    }
+    const dl = s.downloadUrl || s.download_url || [];
 
-  const playableSongs = localSongs.filter((s) => s.songId).map(mapSong);
+    return {
+      ...s,
+      id: songId,
+      songId,
+      name: title,
+      title,
+      image: art ? [{ quality: "500x500", url: art }] : [],
+      duration: Number(s.duration) || 0,
+      primaryArtists: artist,
+      artist,
+      downloadUrl: (dl || []).map((u: any) => ({
+        quality: u.quality || "320kbps",
+        url: u.url || u.link || "",
+      })),
+      download_url: (dl || []).map((u: any) => ({
+        quality: u.quality || "320kbps",
+        link: u.url || u.link || "",
+      })),
+    } as any;
+  };
+
+  const playableSongs = localSongs.filter((s) => s.songId || (s as any).id).map(mapSong);
 
   return (
     <div className="animate-fadeIn -mt-6 -mx-6">
@@ -504,10 +522,10 @@ function PlaylistSongItem({
         <SongRow
           song={mapped}
           index={i}
-          isCurrent={currentSong?.id === s.songId}
+          isCurrent={currentSong?.id === (s.songId || (s as any).id)}
           isPlaying={isPlaying}
           onPlay={() => playSong(mapped, playableSongs)}
-          liked={!!likedSongs?.[s.songId]}
+          liked={!!likedSongs?.[s.songId || (s as any).id]}
           onLike={handleLike}
         />
       </div>

@@ -173,12 +173,17 @@ router.get("/", softAuth, async (req: SoftAuthRequest, res: Response): Promise<v
       }
     }
 
+    const hasLanguagePreference = Boolean(targetLang) || (preferredLangsList && preferredLangsList.length > 0);
     const userAllowedLangs = new Set<string>();
     if (targetLang) userAllowedLangs.add(targetLang.toLowerCase());
     if (preferredLangsList && preferredLangsList.length > 0) {
       for (const pl of preferredLangsList) userAllowedLangs.add(pl.toLowerCase());
     }
-    userAllowedLangs.add("english");
+    // Only allow english if explicitly among preferred languages or if no language preference is set
+    const isEnglishAllowed = userAllowedLangs.has("english") || !hasLanguagePreference;
+    if (isEnglishAllowed) {
+      userAllowedLangs.add("english");
+    }
     userAllowedLangs.add("instrumental");
 
     for (const alb of [...allResAlbums, ...directAlbums]) {
@@ -186,8 +191,8 @@ router.get("/", softAuth, async (req: SoftAuthRequest, res: Response): Promise<v
       if (!id || albumMap.has(id)) continue;
 
       const albLang = (alb.language || "").trim().toLowerCase();
-      // Discard mismatching foreign language albums when target language is specified
-      if (userAllowedLangs.size > 2 && albLang && albLang !== "unknown" && !userAllowedLangs.has(albLang)) {
+      // Discard mismatching foreign language albums when language preference is specified
+      if (hasLanguagePreference && albLang && albLang !== "unknown" && !userAllowedLangs.has(albLang)) {
         continue;
       }
 
@@ -376,8 +381,8 @@ router.get("/", softAuth, async (req: SoftAuthRequest, res: Response): Promise<v
       } catch {}
     }
 
-    // Filter out unrelated foreign language noise when searching for moods or specific languages
-    const songsToNormalize = (detectedMood && userAllowedLangs.size > 2)
+    // If the user has an interested/preferred language, strictly show ONLY songs in those languages
+    const songsToNormalize = hasLanguagePreference
       ? rawSongs.filter((s) => {
           const sLang = (s.language || "").trim().toLowerCase();
           return !sLang || sLang === "unknown" || userAllowedLangs.has(sLang);
@@ -453,6 +458,11 @@ router.get("/", softAuth, async (req: SoftAuthRequest, res: Response): Promise<v
 
     for (const p of rawPlaylists) {
       if (p.id && !playlists.some((x) => x.id === p.id)) {
+        const pLang = (p.language || "").trim().toLowerCase();
+        // If user has language preference, ONLY include playlists in user's interested languages!
+        if (hasLanguagePreference && pLang && pLang !== "unknown" && !userAllowedLangs.has(pLang)) {
+          continue;
+        }
         playlists.push({
           id: p.id,
           name: decodeHtmlEntities(p.name || p.title || ""),

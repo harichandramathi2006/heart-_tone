@@ -1,11 +1,47 @@
 import { Router, Response } from "express";
+import mongoose from "mongoose";
 import { Playlist } from "../models/Playlist.js";
 import { authMiddleware, AuthRequest } from "../middleware/auth.js";
 import { softAuth, SoftAuthRequest } from "../middleware/softAuth.js";
 import { TAMIL_ITEM_SONG_IDS, ACTOR_KARTHIK_SONG_IDS, TAMIL_SAD_SONG_IDS } from "../services/searchRanker.js";
-import { fetchSongsByIds } from "../services/jiosaavn.js";
+import { fetchSongsByIds, getPlaylistDetails } from "../services/jiosaavn.js";
 
 const router = Router();
+
+function formatPlaylistSong(s: any) {
+  const songId = String(s.id || s.songId || "");
+  const title = String(s.name || s.title || "");
+  const artist = String(s.primaryArtists || s.artist || "");
+  let albumArt = "";
+  if (typeof s.image === "string") {
+    albumArt = s.image;
+  } else if (Array.isArray(s.image) && s.image.length > 0) {
+    albumArt = s.image[s.image.length - 1]?.url || s.image[0]?.url || "";
+  } else if (s.albumArt) {
+    albumArt = s.albumArt;
+  }
+  const duration = Number(s.duration) || 0;
+  const downloadUrl = Array.isArray(s.downloadUrl)
+    ? s.downloadUrl.map((d: any) => ({ quality: d.quality || "320kbps", url: d.url || d.link || "" }))
+    : Array.isArray(s.download_url)
+    ? s.download_url.map((d: any) => ({ quality: d.quality || "320kbps", url: d.link || d.url || "" }))
+    : [];
+
+  return {
+    ...s,
+    id: songId,
+    songId,
+    name: title,
+    title,
+    primaryArtists: artist,
+    artist,
+    image: albumArt,
+    albumArt,
+    duration,
+    downloadUrl,
+    download_url: downloadUrl,
+  };
+}
 
 // GET /api/playlists — All user playlists (without songs for speed)
 router.get("/", softAuth, async (req: SoftAuthRequest, res: Response): Promise<void> => {
@@ -88,7 +124,7 @@ router.post("/", authMiddleware, async (req: AuthRequest, res: Response): Promis
 // GET /api/playlists/:id — Single playlist with all songs
 router.get("/:id", softAuth, async (req: SoftAuthRequest, res: Response): Promise<void> => {
   try {
-    const id = req.params.id;
+    const id = String(req.params.id || "");
     if (id === "tamil-sad-songs" || id === "tamil-sad-hits" || id === "sad-songs") {
       const songs = await fetchSongsByIds(TAMIL_SAD_SONG_IDS);
       res.json({
@@ -100,10 +136,7 @@ router.get("/:id", softAuth, async (req: SoftAuthRequest, res: Response): Promis
           userId: "hearttone-official",
           isAIGenerated: false,
           isPublic: true,
-          songs: songs.map((s, idx) => ({
-            ...s,
-            addedAt: new Date(Date.now() - idx * 3600000).toISOString(),
-          })),
+          songs: songs.map(formatPlaylistSong),
         },
       });
       return;
@@ -120,10 +153,7 @@ router.get("/:id", softAuth, async (req: SoftAuthRequest, res: Response): Promis
           userId: "hearttone-official",
           isAIGenerated: false,
           isPublic: true,
-          songs: songs.map((s, idx) => ({
-            ...s,
-            addedAt: new Date(Date.now() - idx * 3600000).toISOString(),
-          })),
+          songs: songs.map(formatPlaylistSong),
         },
       });
       return;
@@ -140,24 +170,53 @@ router.get("/:id", softAuth, async (req: SoftAuthRequest, res: Response): Promis
           userId: "hearttone-official",
           isAIGenerated: false,
           isPublic: true,
-          songs: songs.map((s, idx) => ({
-            ...s,
-            addedAt: new Date(Date.now() - idx * 3600000).toISOString(),
-          })),
+          songs: songs.map(formatPlaylistSong),
         },
       });
       return;
     }
 
-    const playlist = await Playlist.findById(id);
-    if (!playlist) {
-      res.status(404).json({ error: "Playlist not found" });
+    // 1. Try finding in MongoDB (user-created playlists)
+    let playlist: any = null;
+    if (mongoose.Types.ObjectId.isValid(id)) {
+      playlist = await Playlist.findById(id);
+    }
+
+    if (playlist) {
+      res.json({ playlist });
       return;
     }
 
-    // Allow anyone with the exact ID to view the playlist (Unlisted behavior)
-    // We only restrict editing/deleting to the owner in the other endpoints.
-    res.json({ playlist });
+    // 2. Try fetching from JioSaavn (external search/featured playlists like 810634923)
+    try {
+      const ext = await getPlaylistDetails(id);
+      if (ext && (ext.songs || ext.name || ext.title)) {
+        const rawSongs = ext.songs || [];
+        const coverImg = Array.isArray(ext.image)
+          ? ext.image[ext.image.length - 1]?.url || ext.image[0]?.url || ""
+          : ext.image || null;
+
+        res.json({
+          playlist: {
+            _id: ext.id || id,
+            id: ext.id || id,
+            name: ext.name || ext.title || "Featured Playlist",
+            description: ext.description || ext.subtitle || "",
+            coverImage: coverImg,
+            userId: "jiosaavn-official",
+            isAIGenerated: false,
+            isPublic: true,
+            songCount: rawSongs.length,
+            songs: rawSongs.map(formatPlaylistSong),
+          },
+        });
+        return;
+      }
+    } catch (extErr) {
+      console.warn("[Playlist] Failed to fetch external JioSaavn playlist:", extErr);
+    }
+
+    res.status(404).json({ error: "Playlist not found" });
   } catch (err) {
     console.error("[Playlist] Get error:", err);
     res.status(500).json({ error: "Failed to fetch playlist" });

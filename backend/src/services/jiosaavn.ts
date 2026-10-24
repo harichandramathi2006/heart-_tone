@@ -407,6 +407,13 @@ export async function getPlaylistSongs(playlistId: string): Promise<any[]> {
   return data?.data?.songs || data?.songs || [];
 }
 
+export async function getPlaylistDetails(playlistId: string): Promise<any> {
+  const data = (await fetchSafe(
+    `${JIOSAAVN_BASE}/playlists?id=${playlistId}`,
+  )) as any;
+  return data?.data || data || null;
+}
+
 // ── Entity Details ─────────────────────────────────────────────
 export async function getAlbumDetails(albumId: string): Promise<any> {
   const data = (await fetchSafe(
